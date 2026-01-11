@@ -1,3 +1,19 @@
+# Claude Instructions
+
+When working on this project:
+- Always refer to the architecture in section 4 below
+- Follow the implementation phases in section 9
+- Use the tech stack decisions in the Quick Reference table
+- Check the verification plan (section 14) before completing tasks
+- Respect the decisions made in section 10 (LLM providers, database, etc.)
+
+Key commands:
+- Backend: `cd backend && uvicorn app.main:app --reload`
+- Frontend: `cd frontend && npm run dev`
+- Full stack: `docker-compose up`
+
+---
+
 # CodeCompass - Product Requirements Document
 
 ## Quick Reference
