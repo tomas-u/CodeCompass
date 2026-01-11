@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/lib/store';
+import { HealthCheck } from '@/components/debug/HealthCheck';
 
 export function WelcomePage() {
   const { addProject, setAnalysisProgress } = useAppStore();
@@ -215,6 +216,11 @@ export function WelcomePage() {
             </Tabs>
           </CardContent>
         </Card>
+
+        {/* API Health Check (Debug) */}
+        <div className="mt-6 max-w-md mx-auto">
+          <HealthCheck />
+        </div>
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-6">
