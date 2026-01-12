@@ -64,10 +64,22 @@
 - #32: Implement multiple LLM provider support
 
 ## Epic #8: Polish & Developer Experience
-**Goal:** Polish the application with incremental updates, performance optimizations, and export features.
+**Goal:** Polish the application with LSP semantic analysis, incremental updates, performance optimizations, and export features.
+
+**LSP Integration (Hybrid Tree-sitter + LSP):**
+- Adds semantic layer on top of Tree-sitter syntax analysis
+- Optional enhancement - graceful fallback if unavailable
+- Provides type information, cross-file references, diagnostics
 
 **Stories:**
-- (Future stories to be added based on user feedback and testing)
+- #32: Implement multiple LLM provider support
+- #34: Build LSP infrastructure for language server management
+- #35: Integrate Python LSP for semantic analysis
+- #36: Integrate JavaScript/TypeScript LSP for semantic analysis
+- #37: Merge LSP semantic data with Tree-sitter analysis
+- #38: Generate LSP-enhanced reports with type information
+- #39: Implement type-aware and semantic search with LSP
+- (Future: Incremental re-analysis, performance optimizations, exports, UI polish)
 
 ---
 
@@ -140,11 +152,34 @@
 
 ---
 
-### Phase 5: Enhancements (Ongoing)
-**Focus:** Additional providers, polish, performance
+### Phase 5: Enhancements (Weeks 9-10)
+**Focus:** LLM providers and LSP semantic analysis
 
-- #32: Multiple LLM providers
-- Epic #8: Polish & developer experience
+**Backend:**
+- #32: Multiple LLM providers (Ollama, OpenAI, Claude)
+- #34: LSP infrastructure
+- #35: Python LSP integration
+- #36: JavaScript/TypeScript LSP integration
+
+**Deliverable:** Flexible LLM configuration and optional semantic analysis layer
+
+---
+
+### Phase 6: Polish (Weeks 11-12+)
+**Focus:** LSP-enhanced features, performance, exports
+
+**Backend:**
+- #37: Merge LSP data with analysis
+- #38: LSP-enhanced reports
+- #39: Type-aware search
+
+**Frontend:**
+- UI for type-based search
+- Export functionality
+- Performance optimizations
+- Dark mode
+
+**Deliverable:** Production-ready application with semantic features
 
 ---
 
@@ -152,7 +187,9 @@
 
 - ✅ **Phase 1 Foundation:** API client, types, error handling, health check (completed)
 - 🎯 **Next Up:** Phase 1 Core Integration (#9, #10, #11, #33, #21-23, #31)
-- 📝 **Architecture Decision:** Hybrid approach with generic analyzer + language-specific enhancements
+- 📝 **Architecture Decisions:**
+  - Hybrid analyzer: Generic Tree-sitter + language-specific enhancements
+  - Hybrid semantic: Tree-sitter (syntax) + LSP (semantics, optional)
 
 ## Labels
 
@@ -161,3 +198,80 @@
 - `phase-2` through `phase-6` - Integration phases
 - `backend` - Backend work
 - `frontend` - Frontend work
+
+---
+
+## Summary
+
+### Total Work Breakdown
+- **8 Epics** covering all major feature areas
+- **30 User Stories** with acceptance criteria and dependencies
+  - Frontend stories: 11
+  - Backend stories: 18
+  - Full-stack stories: 1
+- **6-phase implementation** (12+ weeks)
+- **2 major architecture decisions:**
+  1. Generic Tree-sitter analyzer + language-specific extensions
+  2. Optional LSP semantic layer on top of Tree-sitter
+
+### Hybrid Analysis Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Analysis Pipeline                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Phase 1-4: Tree-sitter (Fast, Always Available)            │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  Generic Analyzer (#33)                            │     │
+│  │  ├─ Python Enhancements (#21)                      │     │
+│  │  ├─ JavaScript/TypeScript Enhancements (#22)       │     │
+│  │  └─ Dependency Graph (#23)                         │     │
+│  │                                                      │     │
+│  │  Results: Syntax, structure, imports, metrics       │     │
+│  └────────────────────────────────────────────────────┘     │
+│                           │                                  │
+│                           ▼                                  │
+│  Phase 5-6: LSP (Optional, Semantic Layer)                  │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  LSP Infrastructure (#34)                          │     │
+│  │  ├─ Python LSP (#35) - Pyright                     │     │
+│  │  ├─ JS/TS LSP (#36) - typescript-language-server   │     │
+│  │  └─ Analysis Enrichment (#37)                      │     │
+│  │                                                      │     │
+│  │  Adds: Types, references, diagnostics, cross-file   │     │
+│  └────────────────────────────────────────────────────┘     │
+│                           │                                  │
+│                           ▼                                  │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  Enhanced Features                                 │     │
+│  │  ├─ Reports with type info (#38)                   │     │
+│  │  └─ Type-aware search (#39)                        │     │
+│  └────────────────────────────────────────────────────┘     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Benefits of Hybrid Approach
+
+**Tree-sitter Alone (MVP):**
+- ✅ Fast analysis
+- ✅ Works offline
+- ✅ Supports 50+ languages immediately
+- ✅ No external dependencies
+- ✅ 70-80% of value
+
+**Tree-sitter + LSP (Enhanced):**
+- ✅ All Tree-sitter benefits
+- ✅ Accurate type information
+- ✅ Cross-file references
+- ✅ Real compiler diagnostics
+- ✅ Dead code detection
+- ✅ Breaking change analysis
+- ✅ Type-aware search
+- ✅ 90-95% of value
+
+**Graceful Degradation:**
+- LSP is optional enhancement
+- Application fully functional without LSP
+- Users can enable LSP per language as needed
