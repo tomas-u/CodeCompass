@@ -1,6 +1,6 @@
 'use client';
 
-import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen } from 'lucide-react';
+import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,17 +8,15 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
-import { mockProjects } from '@/lib/mock-data';
 
 export function Header() {
-  const { currentProjectId, setCurrentProject, projects } = useAppStore();
+  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError } = useAppStore();
 
-  // Use mock projects if store is empty
-  const allProjects = projects.length > 0 ? projects : mockProjects;
-  const currentProject = allProjects.find(p => p.id === currentProjectId);
+  const currentProject = projects.find(p => p.id === currentProjectId);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -53,7 +51,30 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-[300px]">
-              {allProjects.map((project) => (
+              {isLoadingProjects && (
+                <div className="flex items-center justify-center p-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading projects...</span>
+                </div>
+              )}
+
+              {projectsError && (
+                <div className="p-4">
+                  <div className="flex items-center gap-2 text-destructive mb-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">Error loading projects</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{projectsError}</p>
+                </div>
+              )}
+
+              {!isLoadingProjects && !projectsError && projects.length === 0 && (
+                <DropdownMenuLabel className="font-normal text-muted-foreground">
+                  No projects yet
+                </DropdownMenuLabel>
+              )}
+
+              {!isLoadingProjects && !projectsError && projects.map((project) => (
                 <DropdownMenuItem
                   key={project.id}
                   onClick={() => setCurrentProject(project.id)}
@@ -68,7 +89,8 @@ export function Header() {
                   {getStatusBadge(project.status)}
                 </DropdownMenuItem>
               ))}
-              {allProjects.length > 0 && <DropdownMenuSeparator />}
+
+              {!isLoadingProjects && projects.length > 0 && <DropdownMenuSeparator />}
               <DropdownMenuItem
                 onClick={() => setCurrentProject(null)}
                 className="cursor-pointer"

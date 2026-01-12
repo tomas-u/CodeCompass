@@ -1,22 +1,9 @@
 import { create } from 'zustand';
+import type { ProjectListItem, ProjectStatus as ApiProjectStatus } from '@/types/api';
 
-export type ProjectStatus = 'pending' | 'cloning' | 'scanning' | 'analyzing' | 'indexing' | 'ready' | 'failed';
-
-export interface Project {
-  id: string;
-  name: string;
-  sourceType: 'git_url' | 'local_path';
-  source: string;
-  branch: string;
-  status: ProjectStatus;
-  stats?: {
-    files: number;
-    linesOfCode: number;
-    languages: string[];
-  };
-  createdAt: string;
-  lastAnalyzedAt?: string;
-}
+// Type alias for internal use and re-export for convenience
+export type Project = ProjectListItem;
+export type ProjectStatus = ApiProjectStatus;
 
 export interface ChatMessage {
   id: string;
@@ -44,6 +31,8 @@ interface AppState {
   // Projects
   projects: Project[];
   currentProjectId: string | null;
+  isLoadingProjects: boolean;
+  projectsError: string | null;
 
   // UI State
   isChatPanelOpen: boolean;
@@ -60,6 +49,8 @@ interface AppState {
   setCurrentProject: (id: string | null) => void;
   toggleChatPanel: () => void;
   setActiveTab: (tab: 'overview' | 'diagrams' | 'files' | 'reports') => void;
+  fetchProjects: () => Promise<void>;
+  setProjects: (projects: Project[]) => void;
   addProject: (project: Project) => void;
   deleteProject: (id: string) => void;
   setAnalysisProgress: (progress: AnalysisProgress | null) => void;
@@ -72,6 +63,8 @@ export const useAppStore = create<AppState>((set) => ({
   // Initial state
   projects: [],
   currentProjectId: null,
+  isLoadingProjects: false,
+  projectsError: null,
   isChatPanelOpen: true,
   activeTab: 'overview',
   analysisProgress: null,
@@ -84,6 +77,26 @@ export const useAppStore = create<AppState>((set) => ({
   toggleChatPanel: () => set((state) => ({ isChatPanelOpen: !state.isChatPanelOpen })),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  fetchProjects: async () => {
+    set({ isLoadingProjects: true, projectsError: null });
+    try {
+      const { api } = await import('./api');
+      const result = await api.getProjects();
+      set({
+        projects: result.items,
+        isLoadingProjects: false
+      });
+    } catch (error) {
+      const { getErrorMessage } = await import('./api-error');
+      set({
+        projectsError: getErrorMessage(error),
+        isLoadingProjects: false
+      });
+    }
+  },
+
+  setProjects: (projects) => set({ projects }),
 
   addProject: (project) => set((state) => ({
     projects: [...state.projects, project],

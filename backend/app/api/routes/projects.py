@@ -85,6 +85,7 @@ async def list_projects(
             id=p["id"],
             name=p["name"],
             source_type=p["source_type"],
+            source=p["source"],
             status=p["status"],
             stats=p.get("stats"),
             last_analyzed_at=p.get("last_analyzed_at"),

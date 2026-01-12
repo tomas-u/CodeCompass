@@ -30,11 +30,10 @@ export function WelcomePage() {
     const newProject = {
       id: Date.now().toString(),
       name: repoName,
-      sourceType: 'git_url' as const,
+      source_type: 'git_url' as const,
       source: gitUrl,
-      branch: gitBranch || 'main',
       status: 'cloning' as const,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     addProject(newProject);
@@ -61,11 +60,10 @@ export function WelcomePage() {
     const newProject = {
       id: Date.now().toString(),
       name: folderName,
-      sourceType: 'local_path' as const,
+      source_type: 'local_path' as const,
       source: localPath,
-      branch: 'local',
       status: 'scanning' as const,
-      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     };
 
     addProject(newProject);

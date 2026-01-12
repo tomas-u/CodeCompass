@@ -71,6 +71,7 @@ export interface ProjectListItem {
   id: string;
   name: string;
   source_type: SourceType;
+  source: string;
   status: ProjectStatus;
   stats?: ProjectStats;
   last_analyzed_at?: string;

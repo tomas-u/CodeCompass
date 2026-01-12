@@ -4,32 +4,40 @@ export const mockProjects: Project[] = [
   {
     id: '1',
     name: 'fastapi-example',
-    sourceType: 'git_url',
+    source_type: 'git_url',
     source: 'https://github.com/tiangolo/fastapi',
-    branch: 'main',
     status: 'ready',
     stats: {
       files: 245,
-      linesOfCode: 48500,
-      languages: ['Python', 'Markdown', 'YAML']
+      directories: 32,
+      lines_of_code: 48500,
+      languages: {
+        'Python': { files: 180, lines: 42000 },
+        'Markdown': { files: 30, lines: 3500 },
+        'YAML': { files: 35, lines: 3000 }
+      }
     },
-    createdAt: '2026-01-08T10:00:00Z',
-    lastAnalyzedAt: '2026-01-10T14:30:00Z'
+    created_at: '2026-01-08T10:00:00Z',
+    last_analyzed_at: '2026-01-10T14:30:00Z'
   },
   {
     id: '2',
     name: 'react-app',
-    sourceType: 'local_path',
+    source_type: 'local_path',
     source: '/home/user/projects/react-app',
-    branch: 'develop',
     status: 'ready',
     stats: {
       files: 89,
-      linesOfCode: 12300,
-      languages: ['TypeScript', 'JavaScript', 'CSS']
+      directories: 15,
+      lines_of_code: 12300,
+      languages: {
+        'TypeScript': { files: 50, lines: 8000 },
+        'JavaScript': { files: 25, lines: 3000 },
+        'CSS': { files: 14, lines: 1300 }
+      }
     },
-    createdAt: '2026-01-09T15:00:00Z',
-    lastAnalyzedAt: '2026-01-10T09:00:00Z'
+    created_at: '2026-01-09T15:00:00Z',
+    last_analyzed_at: '2026-01-10T09:00:00Z'
   }
 ];
 

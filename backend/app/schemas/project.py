@@ -84,6 +84,7 @@ class ProjectListItem(BaseModel):
     id: str
     name: str
     source_type: SourceType
+    source: str
     status: ProjectStatus
     stats: Optional[ProjectStats] = None
     last_analyzed_at: Optional[datetime] = None
