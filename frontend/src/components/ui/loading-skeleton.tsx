@@ -171,3 +171,19 @@ export function FullPageLoading({ message }: { message?: string }) {
     </div>
   );
 }
+
+/**
+ * Project dropdown skeleton (for Header dropdown)
+ */
+export function ProjectDropdownSkeleton({ count = 2 }: { count?: number }) {
+  return (
+    <div className="p-2 space-y-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="px-2 py-2 space-y-1">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-48" />
+        </div>
+      ))}
+    </div>
+  );
+}

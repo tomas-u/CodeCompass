@@ -83,8 +83,16 @@ export const useAppStore = create<AppState>((set) => ({
     try {
       const { api } = await import('./api');
       const result = await api.getProjects();
+
+      // Sort projects by created_at descending (newest first)
+      const sortedProjects = [...result.items].sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateB - dateA;
+      });
+
       set({
-        projects: result.items,
+        projects: sortedProjects,
         isLoadingProjects: false
       });
     } catch (error) {

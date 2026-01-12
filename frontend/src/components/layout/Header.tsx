@@ -1,6 +1,6 @@
 'use client';
 
-import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen, AlertCircle } from 'lucide-react';
+import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,9 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
+import { ProjectDropdownSkeleton } from '@/components/ui/loading-skeleton';
+import { InlineError } from '@/components/ui/error-message';
 
 export function Header() {
-  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError } = useAppStore();
+  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError, fetchProjects } = useAppStore();
 
   const currentProject = projects.find(p => p.id === currentProjectId);
 
@@ -51,20 +53,11 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-[300px]">
-              {isLoadingProjects && (
-                <div className="flex items-center justify-center p-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-sm text-muted-foreground">Loading projects...</span>
-                </div>
-              )}
+              {isLoadingProjects && <ProjectDropdownSkeleton count={2} />}
 
               {projectsError && (
-                <div className="p-4">
-                  <div className="flex items-center gap-2 text-destructive mb-2">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">Error loading projects</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{projectsError}</p>
+                <div className="p-3">
+                  <InlineError error={projectsError} onRetry={fetchProjects} />
                 </div>
               )}
 
