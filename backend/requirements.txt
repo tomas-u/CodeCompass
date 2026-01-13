@@ -7,6 +7,9 @@ python-multipart
 pydantic>=2.0
 pydantic-settings
 
+# Database
+sqlalchemy>=2.0.0
+
 # Date/time
 python-dateutil
 

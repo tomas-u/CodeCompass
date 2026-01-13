@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api.routes import projects, analysis, reports, diagrams, files, search, chat, settings_routes
+from app.database import init_db
 
 # Create FastAPI app
 app = FastAPI(
@@ -14,6 +15,14 @@ app = FastAPI(
     version=settings.version,
     debug=settings.debug,
 )
+
+
+# Database initialization on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on application startup."""
+    init_db()
+    print(f"✓ Database initialized: {settings.database_name}")
 
 # Configure CORS
 app.add_middleware(

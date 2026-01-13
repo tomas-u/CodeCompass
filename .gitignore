@@ -67,3 +67,5 @@ data/
 
 # Claude
 .claude
+# SQLite database
+backend/*.db

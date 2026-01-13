@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Compass, GitBranch, Folder, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,72 +10,86 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppStore } from '@/lib/store';
 import { HealthCheck } from '@/components/debug/HealthCheck';
+import { InlineError } from '@/components/ui/error-message';
+import { api } from '@/lib/api';
+import { getErrorMessage } from '@/lib/api-error';
 
 export function WelcomePage() {
-  const { addProject, setAnalysisProgress } = useAppStore();
+  const router = useRouter();
+  const { fetchProjects, setCurrentProject } = useAppStore();
   const [gitUrl, setGitUrl] = useState('');
   const [gitBranch, setGitBranch] = useState('main');
   const [localPath, setLocalPath] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleGitSubmit = (e: React.FormEvent) => {
+  const handleGitSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gitUrl.trim()) return;
 
     setIsLoading(true);
+    setError(null);
 
-    // Extract repo name from URL
-    const repoName = gitUrl.split('/').pop()?.replace('.git', '') || 'project';
+    try {
+      // Extract repo name from URL
+      const repoName = gitUrl.split('/').pop()?.replace('.git', '') || 'project';
 
-    // Create new project
-    const newProject = {
-      id: Date.now().toString(),
-      name: repoName,
-      source_type: 'git_url' as const,
-      source: gitUrl,
-      status: 'cloning' as const,
-      created_at: new Date().toISOString(),
-    };
+      // Create project via API
+      const project = await api.createProject({
+        name: repoName,
+        source_type: 'git_url',
+        source: gitUrl,
+        branch: gitBranch || 'main',
+      });
 
-    addProject(newProject);
+      // Refresh project list and set as current
+      await fetchProjects();
+      setCurrentProject(project.id);
 
-    // Start mock analysis progress
-    setAnalysisProgress({
-      currentStep: 'cloning',
-      overallPercent: 0,
-    });
+      // Clear form
+      setGitUrl('');
+      setGitBranch('main');
 
-    setIsLoading(false);
+      // Navigate to project page
+      router.push(`/projects/${project.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setIsLoading(false);
+    }
   };
 
-  const handleLocalSubmit = (e: React.FormEvent) => {
+  const handleLocalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!localPath.trim()) return;
 
     setIsLoading(true);
+    setError(null);
 
-    // Extract folder name from path
-    const folderName = localPath.split('/').pop() || 'project';
+    try {
+      // Extract folder name from path
+      const folderName = localPath.split('/').pop() || 'project';
 
-    // Create new project
-    const newProject = {
-      id: Date.now().toString(),
-      name: folderName,
-      source_type: 'local_path' as const,
-      source: localPath,
-      status: 'scanning' as const,
-      created_at: new Date().toISOString(),
-    };
+      // Create project via API
+      const project = await api.createProject({
+        name: folderName,
+        source_type: 'local_path',
+        source: localPath,
+        branch: 'local',
+      });
 
-    addProject(newProject);
+      // Refresh project list and set as current
+      await fetchProjects();
+      setCurrentProject(project.id);
 
-    // Start mock analysis progress
-    setAnalysisProgress({
-      currentStep: 'scanning',
-      overallPercent: 0,
-    });
+      // Clear form
+      setLocalPath('');
 
-    setIsLoading(false);
+      // Navigate to project page
+      router.push(`/projects/${project.id}`);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -166,11 +181,14 @@ export function WelcomePage() {
                       onChange={(e) => setGitBranch(e.target.value)}
                     />
                   </div>
+                  {error && (
+                    <InlineError error={error} onRetry={() => handleGitSubmit(new Event('submit') as any)} />
+                  )}
                   <Button type="submit" className="w-full" disabled={!gitUrl.trim() || isLoading}>
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Starting...
+                        Creating Project...
                       </>
                     ) : (
                       <>
@@ -196,11 +214,14 @@ export function WelcomePage() {
                       Enter the absolute path to your project folder
                     </p>
                   </div>
+                  {error && (
+                    <InlineError error={error} onRetry={() => handleLocalSubmit(new Event('submit') as any)} />
+                  )}
                   <Button type="submit" className="w-full" disabled={!localPath.trim() || isLoading}>
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Starting...
+                        Creating Project...
                       </>
                     ) : (
                       <>

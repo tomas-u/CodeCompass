@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     debug: bool = True
 
+    # Database
+    database_name: str = "codecompass.db"
+
     # CORS
     cors_origins: List[str] = [
         "http://localhost:3000",
