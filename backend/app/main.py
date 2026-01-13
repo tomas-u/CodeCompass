@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api.routes import projects, analysis, reports, diagrams, files, search, chat, settings_routes
+from app.api.routes import projects, analysis, reports, diagrams, files, search, chat, settings_routes, admin
 from app.database import init_db
 
 # Create FastAPI app
@@ -79,6 +79,7 @@ app.include_router(files.router, prefix="/api/projects", tags=["files"])
 app.include_router(search.router, prefix="/api/projects", tags=["search"])
 app.include_router(chat.router, prefix="/api/projects", tags=["chat"])
 app.include_router(settings_routes.router, prefix="/api/settings", tags=["settings"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 
 @app.exception_handler(404)

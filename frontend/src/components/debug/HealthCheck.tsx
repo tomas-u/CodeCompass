@@ -8,9 +8,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/api-error';
 import type { HealthResponse } from '@/types/api';
@@ -19,6 +21,7 @@ export function HealthCheck() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -43,6 +46,23 @@ export function HealthCheck() {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${hours}h ${minutes}m`;
+  };
+
+  const handleClearDatabase = async () => {
+    if (!confirm('⚠️ Clear all data from database?\n\nThis will delete all projects. This action cannot be undone.')) {
+      return;
+    }
+
+    setIsClearing(true);
+    try {
+      const result = await api.clearDatabase();
+      alert(`✅ Database cleared!\n\n${result.records_deleted.projects} projects deleted`);
+      window.location.reload(); // Refresh to update UI
+    } catch (error) {
+      alert(`❌ Failed to clear database: ${getErrorMessage(error)}`);
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   return (
@@ -99,6 +119,19 @@ export function HealthCheck() {
                 <p className="font-medium capitalize">{health.llm_status}</p>
               </div>
             </div>
+
+            <Separator className="my-3" />
+
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleClearDatabase}
+              disabled={isClearing}
+              className="w-full"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              {isClearing ? 'Clearing...' : 'Clear Database'}
+            </Button>
           </div>
         )}
       </CardContent>

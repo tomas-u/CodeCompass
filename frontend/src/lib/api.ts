@@ -181,6 +181,24 @@ class CodeCompassAPI {
   }
 
   // ============================================================================
+  // Admin / Debug
+  // ============================================================================
+
+  /**
+   * Clear all data from database (development/testing only)
+   */
+  async clearDatabase(): Promise<{
+    message: string;
+    tables_cleared: string[];
+    records_deleted: { projects: number };
+    timestamp: string;
+  }> {
+    return request('/api/admin/database/clear', {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================================================
   // Projects
   // ============================================================================
 
