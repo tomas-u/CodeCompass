@@ -1,6 +1,6 @@
 """Projects API endpoints."""
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -16,13 +16,18 @@ from app.schemas.project import (
 )
 from app.database import get_db
 from app.models.project import Project
+from app.services.mock_analysis import simulate_analysis
 
 router = APIRouter()
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
-async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
-    """Create a new project."""
+async def create_project(
+    project: ProjectCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    """Create a new project and start analysis."""
     # Generate new project ID
     project_id = str(uuid4())
 
@@ -45,6 +50,9 @@ async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
+
+    # Trigger mock analysis in background
+    background_tasks.add_task(simulate_analysis, project_id)
 
     return ProjectResponse(**db_project.to_dict())
 

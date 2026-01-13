@@ -14,6 +14,7 @@ import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/api-error';
 import { ErrorMessage } from '@/components/ui/error-message';
 import { FullPageLoading } from '@/components/ui/loading-skeleton';
+import { useProjectStatus } from '@/hooks/useProjectStatus';
 import type { Project } from '@/types/api';
 
 export default function ProjectDetailPage() {
@@ -25,6 +26,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
 
   // Fetch project data
   useEffect(() => {
@@ -49,6 +51,41 @@ export default function ProjectDetailPage() {
 
     fetchProject();
   }, [projectId, setCurrentProject, currentProjectId]);
+
+  // Poll project status when project is being analyzed
+  const activeStates = ['analyzing', 'scanning', 'cloning', 'pending'];
+  const shouldPoll = project && activeStates.includes(project.status);
+
+  useProjectStatus({
+    projectId,
+    onStatusUpdate: (updatedProject) => {
+      // Merge updated fields into current project state
+      setProject((prev) => {
+        if (!prev) return prev;
+        const updated = { ...prev, ...updatedProject };
+
+        // Also update the project in the Zustand store to keep list in sync
+        const { projects, setProjects } = useAppStore.getState();
+        const updatedProjects = projects.map((p) =>
+          p.id === projectId ? updated : p
+        );
+        setProjects(updatedProjects);
+
+        return updated;
+      });
+    },
+    onAnalysisUpdate: (analysis) => {
+      // Update progress percentage if available
+      if (analysis.progress !== undefined) {
+        setAnalysisProgress(analysis.progress);
+      }
+    },
+    onError: (errorMessage) => {
+      console.error('Polling error:', errorMessage);
+      // Don't set error state - polling will retry
+    },
+    enabled: shouldPoll,
+  });
 
   // Loading state
   if (isLoading) {
@@ -144,6 +181,11 @@ export default function ProjectDetailPage() {
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold truncate">{project.name}</h1>
                   {getStatusBadge()}
+                  {analysisProgress !== null && activeStates.includes(project.status) && (
+                    <span className="text-sm text-muted-foreground">
+                      {Math.round(analysisProgress)}% complete
+                    </span>
+                  )}
                 </div>
               </div>
 
