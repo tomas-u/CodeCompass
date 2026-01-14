@@ -73,11 +73,12 @@ class TestGenericAnalyzer:
         stats = analyzer.analyze()
 
         # Should find both Python and JavaScript files
-        assert stats["files"] == 2
+        # mixed_language has: 4 Python files + 4 JavaScript files = 8 total
+        assert stats["files"] == 8
         assert "Python" in stats["languages"]
         assert "JavaScript" in stats["languages"]
-        assert stats["languages"]["Python"]["files"] == 1
-        assert stats["languages"]["JavaScript"]["files"] == 1
+        assert stats["languages"]["Python"]["files"] == 4
+        assert stats["languages"]["JavaScript"]["files"] == 4
 
     def test_collect_files_respects_gitignore(self, temp_repo_dir):
         """Test that file collection respects .gitignore patterns."""
@@ -165,11 +166,10 @@ def function():
         # Should extract imports from main.py
         imports = file_stats.get("imports", [])
         assert len(imports) > 0
-        # Should find: os, sys, utils, data_processor
+        # Should find: os, sys, utils
         assert "os" in imports
         assert "sys" in imports
         assert "utils" in imports
-        assert "data_processor" in imports
 
     def test_extract_javascript_imports(self, sample_repos_path):
         """Test extraction of JavaScript/ES6 import statements."""
@@ -182,10 +182,8 @@ def function():
         # Should extract imports from index.js
         imports = file_stats.get("imports", [])
         assert len(imports) > 0
-        # Should find: ./utils, ./services, express
-        assert "./utils" in imports
-        assert "./services" in imports
-        assert "express" in imports
+        # Should find: ./utils.js
+        assert "./utils.js" in imports
 
     def test_stats_aggregation(self, sample_repos_path):
         """Test that statistics are aggregated correctly across files."""

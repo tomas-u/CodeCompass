@@ -13,6 +13,13 @@ from app.database import Base, get_db
 from app.main import app
 from app.models.project import Project
 from app.schemas.project import ProjectStatus, SourceType
+from tests.fixtures import (
+    create_test_project,
+    create_test_project_with_stats,
+    get_sample_repo_path,
+    create_test_settings,
+    create_test_stats,
+)
 
 
 # ============================================================================
@@ -90,49 +97,37 @@ def temp_repo_dir():
 
 
 @pytest.fixture(scope="function")
-def sample_python_repo(temp_repo_dir):
-    """Create minimal Python repository for testing."""
-    repo_path = temp_repo_dir / "python_sample"
-    repo_path.mkdir()
+def sample_python_repo():
+    """
+    Get path to python_simple sample repository from Story #49 fixtures.
 
-    # Create main.py with imports
-    (repo_path / "main.py").write_text("""import os
-from utils import helper
+    Returns permanent sample repo instead of creating temp directories.
+    Sample repo includes: main.py, utils.py, requirements.txt, .gitignore
+    """
+    return get_sample_repo_path('python_simple')
 
-def main():
-    print("Hello, World!")
-    result = helper()
-    return result
 
-if __name__ == "__main__":
-    main()
-""")
+@pytest.fixture(scope="function")
+def sample_javascript_repo():
+    """
+    Get path to javascript_simple sample repository from Story #49 fixtures.
 
-    # Create utils.py with functions
-    (repo_path / "utils.py").write_text("""def helper():
-    return "Helper function"
+    Sample repo includes: index.js, utils.js, package.json, .gitignore
+    """
+    return get_sample_repo_path('javascript_simple')
 
-def calculate(a, b):
-    return a + b
 
-def process_data(data):
-    return [x * 2 for x in data]
-""")
+@pytest.fixture(scope="function")
+def sample_mixed_repo():
+    """
+    Get path to mixed_language sample repository from Story #49 fixtures.
 
-    # Create requirements.txt
-    (repo_path / "requirements.txt").write_text("""fastapi==0.128.0
-pytest==9.0.2
-sqlalchemy==2.0.37
-""")
-
-    # Create .gitignore
-    (repo_path / ".gitignore").write_text("""__pycache__/
-*.pyc
-venv/
-.env
-""")
-
-    return repo_path
+    Sample repo includes:
+    - Python files: api.py, models.py, helpers.py
+    - JavaScript files: client.js, ui.js, config.js
+    - .gitignore with combined patterns
+    """
+    return get_sample_repo_path('mixed_language')
 
 
 # ============================================================================
@@ -141,26 +136,17 @@ venv/
 
 @pytest.fixture
 def project_factory(test_db_session):
-    """Factory for creating test projects."""
-    def _create_project(
-        name="Test Project",
-        source_type=SourceType.local_path,
-        source="/tmp/test",
-        status=ProjectStatus.pending,
-        **kwargs
-    ):
-        from uuid import uuid4
-        project = Project(
-            id=str(uuid4()),
-            name=name,
-            source_type=source_type,
-            source=source,
-            branch=kwargs.get("branch", "main"),
-            local_path=kwargs.get("local_path", source),
-            status=status,
-            settings=kwargs.get("settings"),
-            stats=kwargs.get("stats"),
-        )
+    """
+    Factory for creating test projects using Story #49 fixtures.
+
+    This fixture wraps create_test_project() and handles database persistence.
+    Uses the comprehensive factory from tests.fixtures for consistent test data.
+    """
+    def _create_project(**kwargs):
+        # Use Story #49 factory to create project with sensible defaults
+        project = create_test_project(**kwargs)
+
+        # Add to test database session
         test_db_session.add(project)
         test_db_session.commit()
         test_db_session.refresh(project)
