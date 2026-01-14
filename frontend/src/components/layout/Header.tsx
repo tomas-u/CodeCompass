@@ -1,6 +1,6 @@
 'use client';
 
-import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen } from 'lucide-react';
+import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ import { ProjectDropdownSkeleton } from '@/components/ui/loading-skeleton';
 import { InlineError } from '@/components/ui/error-message';
 
 export function Header() {
-  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError, fetchProjects } = useAppStore();
+  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError, fetchProjects, isChatPanelOpen, toggleChatPanel } = useAppStore();
 
   const currentProject = projects.find(p => p.id === currentProjectId);
 
@@ -97,6 +97,14 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
+          <Button
+            variant={isChatPanelOpen ? "default" : "ghost"}
+            size="icon"
+            onClick={toggleChatPanel}
+            title={isChatPanelOpen ? "Close chat panel" : "Open chat panel"}
+          >
+            <MessageSquare className="h-5 w-5" />
+          </Button>
           <Button variant="ghost" size="icon">
             <Settings className="h-5 w-5" />
           </Button>

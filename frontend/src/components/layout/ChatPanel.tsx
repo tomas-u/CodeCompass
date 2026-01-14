@@ -175,7 +175,7 @@ export function ChatPanel() {
   return (
     <div className="w-full h-full border-l border-border bg-background flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <div className="flex items-center justify-between px-4 h-12 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-primary" />
           <span className="font-medium">Ask about this codebase</span>
