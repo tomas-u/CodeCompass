@@ -269,6 +269,7 @@ export default function ProjectDetailPage() {
                 disabled={!canStartAnalysis}
                 variant={canStartAnalysis ? "default" : "outline"}
                 className="h-10"
+                data-testid="analyze-button"
               >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 {activeStates.includes(project.status) ? 'Analyzing...' : 'Analyze'}

@@ -50,6 +50,11 @@ htmlcov/
 .tox/
 coverage/
 
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.auth/
+
 # ML Models (large files)
 *.bin
 *.pt

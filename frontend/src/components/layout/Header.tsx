@@ -72,6 +72,8 @@ export function Header() {
                   key={project.id}
                   onClick={() => setCurrentProject(project.id)}
                   className="flex items-center justify-between cursor-pointer"
+                  data-testid="project-item"
+                  data-status={project.status}
                 >
                   <div className="flex flex-col">
                     <span className="font-medium">{project.name}</span>
