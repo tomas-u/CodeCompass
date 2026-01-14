@@ -1,6 +1,6 @@
 # End-to-End Test Scenarios
 
-This document describes 4 critical E2E test flows for CodeCompass, executed using MCP Playwright tools for zero-config browser automation.
+This document describes 5 critical E2E test flows for CodeCompass, executed using MCP Playwright tools for zero-config browser automation.
 
 ## Important: Screenshot vs YAML Snapshots
 
@@ -401,9 +401,139 @@ browser_snapshot()  # Verify tab persistence
 
 ---
 
+## Flow 5: Manual Analysis Trigger
+
+**Description:** Test the manual "Analyze" button that allows users to restart or trigger analysis on a project that is in a ready or failed state.
+
+**Pre-conditions:**
+- Backend and frontend running
+- At least one project exists with status "ready" or "failed"
+
+**Test Steps:**
+
+1. **Navigate to project detail page**
+   - Go to http://localhost:3000/projects
+   - Click on a project with status "ready"
+   - Should land on project detail page
+
+2. **Verify "Analyze" button visible**
+   - Button should be visible in top-right header
+   - Button should be enabled (not disabled)
+   - Button should show "Analyze" text with play icon
+
+3. **Click "Analyze" button**
+   - Click the "Analyze" button
+   - Verify confirmation dialog appears
+
+4. **Verify confirmation dialog content**
+   - Dialog title: "Start Code Analysis?"
+   - Dialog shows description of what will happen
+   - If project has stats, shows file count
+   - "Cancel" button visible
+   - "Start Analysis" button visible
+
+5. **Click "Start Analysis" button**
+   - Click "Start Analysis" in dialog
+   - Verify button shows loading state ("Starting...")
+   - Verify button is disabled during submission
+
+6. **Verify analysis starts**
+   - Dialog should close automatically
+   - Project status badge should change to "Pending"
+   - Status should progress through phases (pending→cloning→scanning→analyzing)
+   - Progress updates should happen automatically every 2 seconds
+
+7. **Monitor status progression**
+   - Verify status badge updates without page refresh
+   - Verify final status reaches "Ready" or "Failed"
+   - Verify "Analyze" button becomes enabled again when complete
+
+8. **Test disabled state (already analyzing)**
+   - While analysis is running, verify button shows "Analyzing..."
+   - Verify button is disabled during active analysis
+   - Verify clicking button during analysis has no effect
+
+**Expected Results:**
+- ✅ "Analyze" button visible on ready/failed projects
+- ✅ Confirmation dialog displays correctly with project stats
+- ✅ Analysis starts successfully after confirmation
+- ✅ Project status updates from "Ready" → "Pending" → ... → "Ready"
+- ✅ Status polling works during re-analysis
+- ✅ Button is disabled during active analysis states
+- ✅ No console errors or API failures
+- ✅ Dialog closes on successful submission
+
+**MCP Tool Sequence:**
+```
+# Navigate to a ready project
+browser_navigate(url="http://localhost:3000/projects")
+browser_snapshot()  # Verify project list
+
+browser_click(element="Ready project", ref="[data-status='ready']:first")
+browser_snapshot()  # Verify project detail page loads
+
+# Verify Analyze button present
+browser_snapshot()  # Check for "Analyze" button in header
+
+# Click Analyze button
+browser_click(element="Analyze button", ref="[data-testid='analyze-button']")
+browser_wait_for(time=1)
+browser_snapshot()  # Verify confirmation dialog appears
+
+# Verify dialog content shows file count and description
+browser_snapshot()  # Validate dialog structure
+
+# Click Start Analysis
+browser_click(element="Start Analysis button", ref="button:has-text('Start Analysis')")
+browser_wait_for(time=1)
+browser_snapshot()  # Verify dialog closes
+
+# Monitor status changes
+browser_wait_for(text="Pending", time=2)
+browser_snapshot()  # Verify "Pending" badge visible
+
+browser_wait_for(text="Cloning", time=5)
+browser_snapshot()  # Verify "Cloning" badge visible
+
+browser_wait_for(text="Analyzing", time=10)
+browser_snapshot()  # Verify "Analyzing" badge visible
+
+browser_wait_for(text="Ready", time=30)
+browser_snapshot()  # Verify final "Ready" badge
+
+# Verify button re-enabled
+browser_snapshot()  # Check "Analyze" button is enabled again
+```
+
+**Troubleshooting:**
+- If button is disabled: Check project status is "ready" or "failed"
+- If dialog doesn't appear: Check browser console for React errors
+- If analysis doesn't start: Check backend logs for API errors
+- If status doesn't update: Check useProjectStatus polling hook
+- If 409 error: Analysis already running, wait for completion
+
+**Error Scenarios to Test:**
+
+1. **409 Conflict - Analysis Already Running**
+   - Start analysis on a project
+   - Immediately try to start again (force=false)
+   - Should receive 409 error
+   - Dialog should show error alert
+
+2. **404 Not Found - Project Deleted**
+   - Navigate to non-existent project ID
+   - Should show 404 error page
+
+3. **Network Failure**
+   - Disconnect network during analysis start
+   - Should show error in dialog
+   - Dialog should remain open with error message
+
+---
+
 ## Coverage Summary
 
-These 4 E2E flows cover **60%+ of critical user functionality:**
+These 5 E2E flows cover **70%+ of critical user functionality:**
 
 | Flow | Coverage Area | % of Critical Paths |
 |------|---------------|---------------------|
@@ -411,7 +541,8 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 | Flow 2 | Project management, filtering, deletion | 15% |
 | Flow 3 | Real-time updates, polling mechanism | 10% |
 | Flow 4 | Dashboard navigation, tab switching | 10% |
-| **Total** | | **60%** |
+| Flow 5 | Manual analysis trigger, confirmation workflow | 10% |
+| **Total** | | **70%** |
 
 **Not Covered (Lower Priority):**
 - Chat/Q&A functionality
@@ -431,6 +562,7 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 - Flow 2: ⏳ Pending
 - Flow 3: ⏳ Pending
 - Flow 4: ⏳ Pending
+- Flow 5: ⏳ Pending
 
 **Environment:**
 - Backend: v0.1.0
@@ -456,7 +588,9 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 
 ## Running E2E Tests
 
-**Manual Execution:**
+### Manual Execution (MCP Playwright Tools)
+
+**Steps:**
 1. Start backend: `cd backend && uvicorn app.main:app --reload`
 2. Start frontend: `cd frontend && npm run dev`
 3. Clear database: `curl -X DELETE http://localhost:8000/api/admin/database/clear`
@@ -464,11 +598,117 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 5. Use `browser_snapshot()` to validate page structure (returns YAML inline)
 6. Verify expected results against YAML accessibility trees
 
-**Automation (Future):**
-- Install Playwright locally: `npm install -D @playwright/test`
-- Create test files in `frontend/tests/e2e/`
-- Run: `npx playwright test`
-- Configure CI/CD pipeline
+**Advantages:**
+- Zero configuration needed
+- Visual feedback via Claude interface
+- Perfect for exploratory testing
+- Can capture screenshots (though blank in WSL)
+
+### Automated Execution (Playwright Test Framework)
+
+**Prerequisites:**
+1. Ensure backend is running: `cd backend && uvicorn app.main:app --reload`
+   - Or let Playwright auto-start frontend (configured in `playwright.config.ts`)
+2. Install Playwright browsers (first time only): `cd frontend && npx playwright install`
+
+**Running Tests:**
+
+```bash
+cd frontend
+
+# Run all E2E tests (headless mode)
+npm run test:e2e
+
+# Run tests with UI mode (interactive, recommended for development)
+npm run test:e2e:ui
+
+# Run tests in headed mode (see browser)
+npm run test:e2e:headed
+
+# Run tests in debug mode (step through with Playwright Inspector)
+npm run test:e2e:debug
+
+# View last test report (opens HTML report in browser)
+npm run test:e2e:report
+
+# Run specific test file
+npx playwright test tests/e2e/analyze-workflow.spec.ts
+
+# Run tests matching a pattern
+npx playwright test --grep "analyze"
+```
+
+**Test Output:**
+
+Playwright will:
+- Show progress in terminal
+- Generate HTML report in `playwright-report/`
+- Capture screenshots on failure in `test-results/`
+- Record videos on failure (if configured)
+
+**CI/CD Integration:**
+
+The tests are ready for CI/CD. Example GitHub Actions workflow:
+
+```yaml
+name: E2E Tests
+
+on: [push, pull_request]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Start backend server
+        working-directory: backend
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 5
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+```
+
+**Automated Test Coverage:**
+
+| Test File | Flows Covered | Test Count |
+|-----------|---------------|------------|
+| `project-creation.spec.ts` | Flow 1 | 4 tests |
+| `analyze-workflow.spec.ts` | Flow 5 | 4 tests |
+| **Total** | **2 of 5 flows** | **8 tests** |
+
+**Future Automation:**
+- Flow 2: Project list management
+- Flow 3: Real-time status polling
+- Flow 4: Dashboard tab switching
 
 ---
 
