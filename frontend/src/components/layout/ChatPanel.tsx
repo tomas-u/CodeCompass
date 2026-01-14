@@ -208,9 +208,9 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Messages */}
-      {!isMinimized && (
-        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      {/* Messages - Always rendered for proper flex layout */}
+      <div className={`flex-1 overflow-hidden ${isMinimized ? 'hidden' : ''}`}>
+        <ScrollArea className="h-full p-4" ref={scrollRef}>
           <div className="space-y-4">
           {displayMessages.map((message) => (
             <div
@@ -283,11 +283,10 @@ export function ChatPanel() {
           )}
           </div>
         </ScrollArea>
-      )}
+      </div>
 
-      {/* Input */}
-      {!isMinimized && (
-        <div className="p-4 border-t border-border">
+      {/* Input - Always at bottom */}
+      <div className={`p-4 border-t border-border ${isMinimized ? 'hidden' : ''}`}>
         <div className="flex gap-2 items-end">
           <Textarea
             ref={inputRef}
@@ -306,8 +305,7 @@ export function ChatPanel() {
         <p className="text-xs text-muted-foreground mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
