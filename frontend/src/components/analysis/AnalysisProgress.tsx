@@ -18,8 +18,31 @@ export function AnalysisProgress() {
   const { analysisProgress, setAnalysisProgress, projects, currentProjectId } = useAppStore();
   const [mockProgress, setMockProgress] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [startTime] = useState(Date.now());
 
   const currentProject = projects.find(p => p.id === currentProjectId);
+
+  // Calculate ETA based on progress
+  const calculateETA = () => {
+    if (mockProgress === 0 || mockProgress >= 100) return null;
+
+    const elapsedMs = Date.now() - startTime;
+    const progressFraction = mockProgress / 100;
+    const estimatedTotalMs = elapsedMs / progressFraction;
+    const remainingMs = estimatedTotalMs - elapsedMs;
+
+    const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+    if (remainingSeconds < 60) {
+      return `${remainingSeconds}s remaining`;
+    } else {
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = remainingSeconds % 60;
+      return `${minutes}m ${seconds}s remaining`;
+    }
+  };
+
+  const eta = calculateETA();
 
   // Simulate progress for MVP
   useEffect(() => {
@@ -79,6 +102,11 @@ export function AnalysisProgress() {
               <span className="font-medium">{Math.round(mockProgress)}%</span>
             </div>
             <Progress value={mockProgress} className="h-2" />
+            {eta && (
+              <div className="text-center text-xs text-muted-foreground">
+                {eta}
+              </div>
+            )}
           </div>
 
           {/* Steps */}
