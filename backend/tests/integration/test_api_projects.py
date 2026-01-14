@@ -231,3 +231,129 @@ class TestProjectAPI:
         # Verify project no longer exists
         get_response = client.get(f"/api/projects/{project.id}")
         assert get_response.status_code == 404
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_success(self, mock_run_analysis, client, project_factory, test_db):
+        """Test starting analysis on a project."""
+        project = project_factory(name="Test Project", status=ProjectStatus.ready)
+
+        # Start analysis
+        response = client.post(
+            f"/api/projects/{project.id}/analyze",
+            json={}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "analysis_id" in data
+        assert data["status"] == "queued"
+        assert "Analysis started" in data["message"]
+        assert data["estimated_duration_seconds"] == 120
+
+        # Verify run_analysis was called
+        mock_run_analysis.assert_called_once_with(project.id)
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_with_options(self, mock_run_analysis, client, project_factory, test_db):
+        """Test starting analysis with custom options."""
+        project = project_factory(name="Test Project", status=ProjectStatus.ready)
+
+        # Start analysis with options
+        response = client.post(
+            f"/api/projects/{project.id}/analyze",
+            json={
+                "force": False,
+                "options": {
+                    "generate_reports": True,
+                    "generate_diagrams": False,
+                    "build_embeddings": True
+                }
+            }
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "queued"
+
+        # Verify run_analysis was called
+        mock_run_analysis.assert_called_once()
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_project_not_found(self, mock_run_analysis, client, test_db):
+        """Test starting analysis on non-existent project."""
+        response = client.post(
+            "/api/projects/nonexistent-id/analyze",
+            json={}
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"]["code"] == "PROJECT_NOT_FOUND"
+
+        # Verify run_analysis was not called
+        mock_run_analysis.assert_not_called()
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_already_running(self, mock_run_analysis, client, project_factory, test_db):
+        """Test starting analysis when one is already running."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.analyzing
+        )
+
+        # Try to start analysis
+        response = client.post(
+            f"/api/projects/{project.id}/analyze",
+            json={"force": False}
+        )
+
+        assert response.status_code == 409
+        data = response.json()
+        assert data["detail"]["code"] == "ANALYSIS_ALREADY_RUNNING"
+        assert project.id in data["detail"]["details"]["project_id"]
+
+        # Verify run_analysis was not called
+        mock_run_analysis.assert_not_called()
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_force_when_running(self, mock_run_analysis, client, project_factory, test_db):
+        """Test forcing analysis restart when one is already running."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.analyzing
+        )
+
+        # Force start analysis
+        response = client.post(
+            f"/api/projects/{project.id}/analyze",
+            json={"force": True}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "queued"
+
+        # Verify run_analysis was called
+        mock_run_analysis.assert_called_once_with(project.id)
+
+    @patch("app.api.routes.projects.run_analysis")
+    def test_start_analysis_updates_project_status(self, mock_run_analysis, client, project_factory, test_db):
+        """Test that starting analysis updates project status to pending."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready
+        )
+
+        # Start analysis
+        response = client.post(
+            f"/api/projects/{project.id}/analyze",
+            json={}
+        )
+
+        assert response.status_code == 200
+
+        # Verify project status was updated
+        get_response = client.get(f"/api/projects/{project.id}")
+        assert get_response.status_code == 200
+        project_data = get_response.json()
+        assert project_data["status"] == "pending"

@@ -2,13 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, GitBranch, FolderGit, Clock, Check, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, GitBranch, FolderGit, Clock, Check, Loader2, AlertCircle, PlayCircle, AlertTriangle } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/api-error';
@@ -27,6 +36,9 @@ export default function ProjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Fetch project data
   useEffect(() => {
@@ -86,6 +98,42 @@ export default function ProjectDetailPage() {
     },
     enabled: shouldPoll,
   });
+
+  // Handle analysis trigger
+  const handleStartAnalysis = async () => {
+    setAnalysisError(null);
+    setIsStartingAnalysis(true);
+
+    try {
+      await api.startAnalysis(projectId, {
+        force: false,
+        generate_reports: true,
+        generate_diagrams: true,
+        build_embeddings: true,
+      });
+
+      // Close dialog
+      setShowConfirmDialog(false);
+
+      // Refetch project to get updated status
+      const updatedProject = await api.getProject(projectId);
+      setProject(updatedProject);
+
+      // Update in store as well
+      const { projects, setProjects } = useAppStore.getState();
+      const updatedProjects = projects.map((p) =>
+        p.id === projectId ? updatedProject : p
+      );
+      setProjects(updatedProjects);
+    } catch (err) {
+      setAnalysisError(getErrorMessage(err));
+    } finally {
+      setIsStartingAnalysis(false);
+    }
+  };
+
+  // Check if analysis can be started
+  const canStartAnalysis = project && !activeStates.includes(project.status);
 
   // Loading state
   if (isLoading) {
@@ -213,35 +261,49 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
-            {/* Stats Summary */}
-            {project.stats && (
-              <Card className="ml-4">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-6 text-sm">
-                    {project.stats.files !== undefined && (
-                      <div>
-                        <p className="text-muted-foreground">Files</p>
-                        <p className="text-lg font-semibold">{project.stats.files.toLocaleString()}</p>
-                      </div>
-                    )}
-                    {project.stats.lines_of_code !== undefined && (
-                      <div>
-                        <p className="text-muted-foreground">Lines</p>
-                        <p className="text-lg font-semibold">
-                          {(project.stats.lines_of_code / 1000).toFixed(1)}k
-                        </p>
-                      </div>
-                    )}
-                    {project.stats.languages && Object.keys(project.stats.languages).length > 0 && (
-                      <div>
-                        <p className="text-muted-foreground">Languages</p>
-                        <p className="text-lg font-semibold">{Object.keys(project.stats.languages).length}</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Action Buttons and Stats */}
+            <div className="ml-4 flex items-center gap-3">
+              {/* Analyze Button */}
+              <Button
+                onClick={() => setShowConfirmDialog(true)}
+                disabled={!canStartAnalysis}
+                variant={canStartAnalysis ? "default" : "outline"}
+                className="h-10"
+              >
+                <PlayCircle className="h-4 w-4 mr-2" />
+                {activeStates.includes(project.status) ? 'Analyzing...' : 'Analyze'}
+              </Button>
+
+              {/* Stats Summary */}
+              {project.stats && (
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-6 text-sm">
+                      {project.stats.files !== undefined && (
+                        <div>
+                          <p className="text-muted-foreground">Files</p>
+                          <p className="text-lg font-semibold">{project.stats.files.toLocaleString()}</p>
+                        </div>
+                      )}
+                      {project.stats.lines_of_code !== undefined && (
+                        <div>
+                          <p className="text-muted-foreground">Lines</p>
+                          <p className="text-lg font-semibold">
+                            {(project.stats.lines_of_code / 1000).toFixed(1)}k
+                          </p>
+                        </div>
+                      )}
+                      {project.stats.languages && Object.keys(project.stats.languages).length > 0 && (
+                        <div>
+                          <p className="text-muted-foreground">Languages</p>
+                          <p className="text-lg font-semibold">{Object.keys(project.stats.languages).length}</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
 
           {/* Description */}
@@ -255,6 +317,61 @@ export default function ProjectDetailPage() {
           <Dashboard />
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start Code Analysis?</DialogTitle>
+            <DialogDescription>
+              This will analyze the project's codebase, generate reports, create diagrams, and build embeddings for AI-powered Q&A.
+              {project?.stats && (
+                <span className="block mt-2 text-sm">
+                  The project has {project.stats.files?.toLocaleString() || 0} files. Analysis may take a few minutes.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Show error if analysis failed */}
+          {analysisError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Analysis Failed</AlertTitle>
+              <AlertDescription>{analysisError}</AlertDescription>
+            </Alert>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowConfirmDialog(false);
+                setAnalysisError(null);
+              }}
+              disabled={isStartingAnalysis}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStartAnalysis}
+              disabled={isStartingAnalysis}
+            >
+              {isStartingAnalysis ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-4 w-4 mr-2" />
+                  Start Analysis
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

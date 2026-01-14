@@ -14,6 +14,11 @@ from app.schemas.project import (
     ProjectListItem,
     ProjectStatus,
 )
+from app.schemas.analysis import (
+    AnalysisCreate,
+    AnalysisStartResponse,
+    AnalysisStatus,
+)
 from app.database import get_db
 from app.models.project import Project
 from app.services.analysis_service import run_analysis
@@ -192,3 +197,85 @@ async def delete_project(
             "files": delete_files
         }
     }
+
+
+@router.post("/{project_id}/analyze", response_model=AnalysisStartResponse)
+async def start_analysis(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    request: Optional[AnalysisCreate] = None
+):
+    """
+    Trigger analysis for a project.
+
+    This endpoint starts the analysis process for a project, which includes:
+    - Cloning/syncing the repository
+    - Scanning and analyzing code
+    - Generating reports and diagrams
+    - Building embeddings for Q&A
+
+    Args:
+        project_id: The project ID
+        request: Analysis options (optional)
+        background_tasks: FastAPI background tasks
+        db: Database session
+
+    Returns:
+        AnalysisStartResponse with analysis ID and status
+
+    Raises:
+        404: Project not found
+        409: Analysis already running (unless force=True)
+    """
+    # Get project
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "PROJECT_NOT_FOUND",
+                "message": f"Project with ID '{project_id}' not found",
+                "details": {"project_id": project_id}
+            }
+        )
+
+    # Check if analysis is already running
+    active_statuses = [ProjectStatus.pending, ProjectStatus.cloning,
+                      ProjectStatus.scanning, ProjectStatus.analyzing]
+
+    if project.status in active_statuses:
+        # Analysis already running
+        force = request.force if request else False
+        if not force:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "ANALYSIS_ALREADY_RUNNING",
+                    "message": f"Analysis is already running for project '{project.name}'",
+                    "details": {
+                        "project_id": project_id,
+                        "current_status": project.status
+                    }
+                }
+            )
+
+    # Update project status to pending
+    project.status = ProjectStatus.pending
+    project.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(project)
+
+    # Trigger analysis in background
+    # Note: We reuse project_id as analysis_id for simplicity in MVP
+    # In production, each analysis would have its own unique ID
+    analysis_id = f"{project_id}-{int(datetime.utcnow().timestamp())}"
+    background_tasks.add_task(run_analysis, project_id)
+
+    return AnalysisStartResponse(
+        analysis_id=analysis_id,
+        status=AnalysisStatus.queued,
+        message=f"Analysis started for project '{project.name}'",
+        estimated_duration_seconds=120  # Rough estimate: 2 minutes
+    )
