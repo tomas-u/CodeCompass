@@ -4,6 +4,7 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
@@ -21,6 +22,9 @@ from app.schemas.project import ProjectStatus, SourceType
 @pytest.fixture(scope="function")
 def test_db_engine():
     """Create in-memory SQLite database for testing."""
+    # Import models to register them with Base before creating tables
+    from app.models import project  # noqa: F401
+
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False}
@@ -67,8 +71,10 @@ def test_db(test_db_session):
 @pytest.fixture(scope="function")
 def client(test_db):
     """FastAPI test client with test database."""
-    with TestClient(app) as test_client:
-        yield test_client
+    # Mock init_db to prevent startup event from using production database
+    with patch("app.main.init_db"):
+        with TestClient(app) as test_client:
+            yield test_client
 
 
 # ============================================================================
@@ -161,3 +167,17 @@ def project_factory(test_db_session):
         return project
 
     return _create_project
+
+
+@pytest.fixture
+def db_initialized(test_db_session, project_factory):
+    """
+    Ensure database is initialized (tables created).
+    This fixture ensures database setup runs but doesn't leave any projects.
+    """
+    # Create and immediately delete a dummy project to ensure tables exist
+    # This is needed because FastAPI TestClient has issues with database overrides
+    dummy = project_factory(name="_dummy_for_init_")
+    test_db_session.delete(dummy)
+    test_db_session.commit()
+    return test_db_session
