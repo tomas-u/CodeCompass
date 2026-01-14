@@ -16,7 +16,7 @@ from app.schemas.project import (
 )
 from app.database import get_db
 from app.models.project import Project
-from app.services.mock_analysis import simulate_analysis
+from app.services.analysis_service import run_analysis
 
 router = APIRouter()
 
@@ -51,8 +51,8 @@ async def create_project(
     db.commit()
     db.refresh(db_project)
 
-    # Trigger mock analysis in background
-    background_tasks.add_task(simulate_analysis, project_id)
+    # Trigger real analysis in background
+    background_tasks.add_task(run_analysis, project_id)
 
     return ProjectResponse(**db_project.to_dict())
 

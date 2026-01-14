@@ -9,10 +9,14 @@ import { mockProjects, mockArchitectureReport } from '@/lib/mock-data';
 export function OverviewTab() {
   const { currentProjectId, projects } = useAppStore();
 
-  // Get current project or use mock
+  // Get current project
   const allProjects = projects.length > 0 ? projects : mockProjects;
   const currentProject = allProjects.find(p => p.id === currentProjectId) || mockProjects[0];
-  const report = mockArchitectureReport;
+
+  // Use real project stats if available, otherwise fall back to mock
+  const hasRealStats = currentProject?.stats && currentProject.status === 'ready';
+  const stats = hasRealStats ? currentProject.stats : mockArchitectureReport.overview.stats;
+  const report = mockArchitectureReport; // Keep for now for other fields
 
   return (
     <div className="p-6 space-y-6">
@@ -31,7 +35,7 @@ export function OverviewTab() {
                 <FileCode className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{report.overview.stats.files}</p>
+                <p className="text-2xl font-bold">{stats.files || 0}</p>
                 <p className="text-sm text-muted-foreground">Files</p>
               </div>
             </div>
@@ -44,7 +48,9 @@ export function OverviewTab() {
                 <Code2 className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{(report.overview.stats.linesOfCode / 1000).toFixed(1)}k</p>
+                <p className="text-2xl font-bold">
+                  {((stats.lines_of_code || stats.linesOfCode || 0) / 1000).toFixed(1)}k
+                </p>
                 <p className="text-sm text-muted-foreground">Lines of Code</p>
               </div>
             </div>
@@ -57,8 +63,12 @@ export function OverviewTab() {
                 <Package className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{report.dependencies.external.length}</p>
-                <p className="text-sm text-muted-foreground">Dependencies</p>
+                <p className="text-2xl font-bold">
+                  {hasRealStats ? Object.keys(stats.languages || {}).length : report.dependencies.external.length}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {hasRealStats ? 'Languages' : 'Dependencies'}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -70,7 +80,7 @@ export function OverviewTab() {
                 <Clock className="h-5 w-5 text-orange-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{report.overview.stats.directories}</p>
+                <p className="text-2xl font-bold">{stats.directories || 0}</p>
                 <p className="text-sm text-muted-foreground">Directories</p>
               </div>
             </div>
@@ -92,35 +102,47 @@ export function OverviewTab() {
             <div>
               <p className="text-sm font-medium text-muted-foreground mb-2">Languages</p>
               <div className="flex flex-wrap gap-2">
-                {report.techStack.languages.map((lang) => (
-                  <Badge key={lang} variant="secondary">{lang}</Badge>
-                ))}
+                {hasRealStats ? (
+                  Object.entries(stats.languages || {}).map(([lang, langStats]) => (
+                    <Badge key={lang} variant="secondary">
+                      {lang} ({langStats.files})
+                    </Badge>
+                  ))
+                ) : (
+                  report.techStack.languages.map((lang) => (
+                    <Badge key={lang} variant="secondary">{lang}</Badge>
+                  ))
+                )}
               </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Frameworks</p>
-              <div className="flex flex-wrap gap-2">
-                {report.techStack.frameworks.map((fw) => (
-                  <Badge key={fw} variant="secondary">{fw}</Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Databases</p>
-              <div className="flex flex-wrap gap-2">
-                {report.techStack.databases.map((db) => (
-                  <Badge key={db} variant="secondary">{db}</Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Tools</p>
-              <div className="flex flex-wrap gap-2">
-                {report.techStack.tools.map((tool) => (
-                  <Badge key={tool} variant="outline">{tool}</Badge>
-                ))}
-              </div>
-            </div>
+            {!hasRealStats && (
+              <>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Frameworks</p>
+                  <div className="flex flex-wrap gap-2">
+                    {report.techStack.frameworks.map((fw) => (
+                      <Badge key={fw} variant="secondary">{fw}</Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Databases</p>
+                  <div className="flex flex-wrap gap-2">
+                    {report.techStack.databases.map((db) => (
+                      <Badge key={db} variant="secondary">{db}</Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Tools</p>
+                  <div className="flex flex-wrap gap-2">
+                    {report.techStack.tools.map((tool) => (
+                      <Badge key={tool} variant="outline">{tool}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -195,34 +217,37 @@ export function OverviewTab() {
       </div>
 
       {/* Languages Breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Languages Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {Object.entries(report.overview.stats.languages).map(([lang, stats]) => {
-              const percentage = (stats.lines / report.overview.stats.linesOfCode) * 100;
-              return (
-                <div key={lang}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium">{lang}</span>
-                    <span className="text-muted-foreground">
-                      {stats.files} files, {(stats.lines / 1000).toFixed(1)}k lines
-                    </span>
+      {stats.languages && Object.keys(stats.languages).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Languages Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Object.entries(stats.languages).map(([lang, langStats]) => {
+                const totalLines = stats.lines_of_code || stats.linesOfCode || 1;
+                const percentage = (langStats.lines / totalLines) * 100;
+                return (
+                  <div key={lang}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="font-medium">{lang}</span>
+                      <span className="text-muted-foreground">
+                        {langStats.files} files, {(langStats.lines / 1000).toFixed(1)}k lines
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

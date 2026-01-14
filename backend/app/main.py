@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import time
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -8,6 +9,12 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.api.routes import projects, analysis, reports, diagrams, files, search, chat, settings_routes, admin
 from app.database import init_db
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 # Create FastAPI app
 app = FastAPI(
