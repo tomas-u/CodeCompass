@@ -1,29 +1,52 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, Bot, User, Copy, Check, FileCode } from 'lucide-react';
+import { Send, X, Bot, User, Copy, Check, FileCode, Minimize2, Maximize2, Trash2 } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
 import { mockChatMessages } from '@/lib/mock-data';
 
 export function ChatPanel() {
-  const { isChatPanelOpen, toggleChatPanel, chatMessages, addChatMessage, isAiTyping, setIsAiTyping } = useAppStore();
+  const { toggleChatPanel, chatMessages, addChatMessage, isAiTyping, setIsAiTyping, clearChat } = useAppStore();
   const [inputValue, setInputValue] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isMinimized, setIsMinimized] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Use mock messages if store is empty
   const displayMessages = chatMessages.length > 0 ? chatMessages : mockChatMessages;
 
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [displayMessages, isAiTyping]);
+
+  // Keyboard shortcut: Cmd+K (Mac) or Ctrl+K (Windows/Linux) to focus chat
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        if (!useAppStore.getState().isChatPanelOpen) {
+          toggleChatPanel();
+        }
+        // Small delay to ensure panel is open before focusing
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleChatPanel]);
 
   const handleSend = () => {
     if (!inputValue.trim()) return;
@@ -65,6 +88,22 @@ export function ChatPanel() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const formatTimestamp = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+
+    // For older messages, show time
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const renderMessageContent = (content: string) => {
     // Split by code blocks
     const parts = content.split(/(```[\s\S]*?```)/g);
@@ -76,9 +115,9 @@ export function ChatPanel() {
           const language = match[1] || 'text';
           const code = match[2].trim();
           return (
-            <div key={index} className="relative my-3 rounded-lg bg-muted overflow-hidden">
+            <div key={index} className="relative my-3 rounded-lg overflow-hidden border border-border">
               <div className="flex items-center justify-between px-4 py-2 bg-muted/80 border-b border-border">
-                <span className="text-xs text-muted-foreground">{language}</span>
+                <span className="text-xs font-mono text-muted-foreground uppercase">{language}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -92,9 +131,23 @@ export function ChatPanel() {
                   )}
                 </Button>
               </div>
-              <pre className="p-4 overflow-x-auto text-sm">
-                <code>{code}</code>
-              </pre>
+              <SyntaxHighlighter
+                language={language}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  padding: '1rem',
+                  fontSize: '0.875rem',
+                  background: 'hsl(var(--muted))',
+                }}
+                codeTagProps={{
+                  style: {
+                    fontFamily: 'var(--font-mono, monospace)',
+                  }
+                }}
+              >
+                {code}
+              </SyntaxHighlighter>
             </div>
           );
         }
@@ -119,24 +172,46 @@ export function ChatPanel() {
     });
   };
 
-  if (!isChatPanelOpen) return null;
-
   return (
-    <div className="w-[400px] border-l border-border bg-background flex flex-col h-full">
+    <div className="w-full h-full border-l border-border bg-background flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-primary" />
           <span className="font-medium">Ask about this codebase</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={toggleChatPanel}>
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={clearChat}
+            title="Clear conversation"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMinimized(!isMinimized)}
+            title={isMinimized ? "Maximize" : "Minimize"}
+          >
+            {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleChatPanel}
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4">
+      {!isMinimized && (
+        <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+          <div className="space-y-4">
           {displayMessages.map((message) => (
             <div
               key={message.id}
@@ -148,7 +223,7 @@ export function ChatPanel() {
                 </div>
               )}
               <div
-                className={`max-w-[85%] rounded-lg px-4 py-3 ${
+                className={`max-w-[90%] rounded-lg px-4 py-3 ${
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'
@@ -159,6 +234,9 @@ export function ChatPanel() {
                     ? renderMessageContent(message.content)
                     : message.content
                   }
+                </div>
+                <div className="text-xs opacity-70 mt-2">
+                  {formatTimestamp(message.createdAt)}
                 </div>
 
                 {/* Sources */}
@@ -203,28 +281,33 @@ export function ChatPanel() {
               </div>
             </div>
           )}
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
+      )}
 
       {/* Input */}
-      <div className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          <Input
+      {!isMinimized && (
+        <div className="p-4 border-t border-border">
+        <div className="flex gap-2 items-end">
+          <Textarea
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about the codebase..."
-            className="flex-1"
+            placeholder="Ask about the codebase... (⌘K)"
+            className="flex-1 min-h-[44px] max-h-[120px] resize-none"
+            rows={2}
+            maxLength={500}
           />
-          <Button onClick={handleSend} disabled={!inputValue.trim() || isAiTyping}>
+          <Button onClick={handleSend} disabled={!inputValue.trim() || isAiTyping} className="h-[44px]">
             <Send className="h-4 w-4" />
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
