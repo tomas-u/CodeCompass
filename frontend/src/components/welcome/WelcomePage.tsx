@@ -162,11 +162,12 @@ export function WelcomePage() {
               </TabsList>
 
               <TabsContent value="git" className="mt-4">
-                <form onSubmit={handleGitSubmit} className="space-y-4">
+                <form onSubmit={handleGitSubmit} className="space-y-4" data-testid="git-form">
                   <div className="space-y-2">
                     <Label htmlFor="git-url">Repository URL</Label>
                     <Input
                       id="git-url"
+                      data-testid="git-url-input"
                       placeholder="https://github.com/user/repo.git"
                       value={gitUrl}
                       onChange={(e) => setGitUrl(e.target.value)}
@@ -176,6 +177,7 @@ export function WelcomePage() {
                     <Label htmlFor="git-branch">Branch (optional)</Label>
                     <Input
                       id="git-branch"
+                      data-testid="git-branch-input"
                       placeholder="main"
                       value={gitBranch}
                       onChange={(e) => setGitBranch(e.target.value)}
@@ -184,7 +186,7 @@ export function WelcomePage() {
                   {error && (
                     <InlineError error={error} onRetry={() => handleGitSubmit(new Event('submit') as any)} />
                   )}
-                  <Button type="submit" className="w-full" disabled={!gitUrl.trim() || isLoading}>
+                  <Button type="submit" className="w-full" disabled={!gitUrl.trim() || isLoading} data-testid="git-submit-button">
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -201,11 +203,12 @@ export function WelcomePage() {
               </TabsContent>
 
               <TabsContent value="local" className="mt-4">
-                <form onSubmit={handleLocalSubmit} className="space-y-4">
+                <form onSubmit={handleLocalSubmit} className="space-y-4" data-testid="local-form">
                   <div className="space-y-2">
                     <Label htmlFor="local-path">Local Path</Label>
                     <Input
                       id="local-path"
+                      data-testid="local-path-input"
                       placeholder="/home/user/projects/my-app"
                       value={localPath}
                       onChange={(e) => setLocalPath(e.target.value)}
@@ -217,7 +220,7 @@ export function WelcomePage() {
                   {error && (
                     <InlineError error={error} onRetry={() => handleLocalSubmit(new Event('submit') as any)} />
                   )}
-                  <Button type="submit" className="w-full" disabled={!localPath.trim() || isLoading}>
+                  <Button type="submit" className="w-full" disabled={!localPath.trim() || isLoading} data-testid="local-submit-button">
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
