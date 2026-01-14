@@ -7,6 +7,17 @@ When working on this project:
 - Check the verification plan (section 14) before completing tasks
 - Respect the decisions made in section 10 (LLM providers, database, etc.)
 
+**GitHub Issue Validation Workflow (CRITICAL):**
+When implementing any GitHub story/issue:
+1. **Before starting:** Read the GitHub issue (`gh issue view <number>`) to understand all tasks and acceptance criteria
+2. **During implementation:** Work through each acceptance criteria systematically
+3. **After completion:** Validate all work against the issue:
+   - Check off completed items in the issue body (`gh issue edit <number> --body`)
+   - Mark all completed checkboxes as `[x]`
+   - Add a completion summary showing what was achieved vs. what was required
+   - Update with coverage percentages, test counts, and any metrics that exceeded targets
+4. **Always verify:** Every checkbox must be validated before closing an issue
+
 Key commands:
 - Backend: `cd backend && uvicorn app.main:app --reload`
 - Frontend: `cd frontend && npm run dev`
