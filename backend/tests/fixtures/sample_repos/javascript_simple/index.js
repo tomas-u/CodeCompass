@@ -1,30 +1,16 @@
 /**
- * Main entry point for JavaScript sample project.
+ * Sample JavaScript application for testing code analysis.
  */
 
-import { processData } from './utils';
-import { DataService } from './services';
-import express from 'express';
-
-
-const app = express();
-const PORT = 3000;
+import { calculateProduct, formatMessage } from './utils.js';
 
 function main() {
-    console.log('Starting application...');
-
-    const service = new DataService();
-    const result = processData(service.getData());
-
-    console.log('Result:', result);
+  const numbers = [2, 3, 4, 5];
+  const product = calculateProduct(numbers);
+  const message = formatMessage('Product', product);
+  console.log(message);
+  return 0;
 }
 
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
-
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
-
+// Run main function
 main();

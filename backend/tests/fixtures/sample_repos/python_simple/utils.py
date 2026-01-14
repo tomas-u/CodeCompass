@@ -1,23 +1,11 @@
-"""Utility functions."""
-
-import json
-from typing import Dict, Any
+"""Utility functions for the sample application."""
 
 
-def helper_function() -> str:
-    """Helper function that returns a greeting."""
-    return "Hello from helper!"
+def calculate_sum(numbers):
+    """Calculate the sum of a list of numbers."""
+    return sum(numbers)
 
 
-def process_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """Process configuration dictionary."""
-    return {
-        "processed": True,
-        "data": config
-    }
-
-
-def load_json_file(file_path: str) -> Dict:
-    """Load JSON file."""
-    with open(file_path, 'r') as f:
-        return json.load(f)
+def format_output(label, value):
+    """Format output with label and value."""
+    return f"{label}: {value}"

@@ -1,22 +1,11 @@
 /**
- * Utility functions for data processing.
+ * Utility functions for the sample application.
  */
 
-import lodash from 'lodash';
-
-
-export function processData(data) {
-    return data.map(item => ({
-        ...item,
-        processed: true
-    }));
+export function calculateProduct(numbers) {
+  return numbers.reduce((acc, num) => acc * num, 1);
 }
 
-export function formatDate(date) {
-    return date.toISOString();
+export function formatMessage(label, value) {
+  return `${label}: ${value}`;
 }
-
-export const CONSTANTS = {
-    MAX_SIZE: 1000,
-    MIN_SIZE: 10
-};
