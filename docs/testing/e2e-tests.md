@@ -2,6 +2,23 @@
 
 This document describes 4 critical E2E test flows for CodeCompass, executed using MCP Playwright tools for zero-config browser automation.
 
+## Important: Screenshot vs YAML Snapshots
+
+**WSL Environment Limitation:**
+- Visual PNG screenshots will render as blank/white images in WSL due to GPU limitations in headless Chromium
+- This CANNOT be fixed with xvfb or other virtual display solutions
+- Do NOT attempt to fix screenshot rendering in WSL environments
+
+**Recommended Testing Approach:**
+- Use `browser_snapshot()` WITHOUT filename parameter to get YAML accessibility tree output
+- The YAML structure provides complete validation of page elements, content, and interactive states
+- YAML snapshots are more reliable for automated testing than visual screenshots
+- If visual validation is required, run tests on native Linux with GPU or Windows
+
+**When to use filenames with browser_snapshot():**
+- Only use `browser_snapshot(filename="path.md")` if you want to save YAML output to a file
+- Do NOT use PNG screenshots for functional validation in WSL
+
 ## Prerequisites
 
 **Servers Must Be Running:**
@@ -74,10 +91,10 @@ This document describes 4 critical E2E test flows for CodeCompass, executed usin
 **MCP Tool Sequence:**
 ```
 browser_navigate(url="http://localhost:3000")
-browser_snapshot(filename="docs/testing/screenshots/flow1-01-homepage.png")
+browser_snapshot()  # Returns YAML accessibility tree inline
 
 browser_click(element="Create New Project button", ref="[data-testid='create-project']")
-browser_snapshot(filename="docs/testing/screenshots/flow1-02-create-form.png")
+browser_snapshot()  # Validate form elements appear
 
 browser_fill_form(fields=[
   {name: "Project Name", type: "textbox", ref: "[name='name']", value: "Test Backend Analysis"},
@@ -87,16 +104,16 @@ browser_fill_form(fields=[
 
 browser_click(element="Submit button", ref: "[type='submit']")
 browser_wait_for(text="Pending", time=2)
-browser_snapshot(filename="docs/testing/screenshots/flow1-03-pending.png")
+browser_snapshot()  # Verify "Pending" badge visible
 
 browser_wait_for(text="Analyzing", time=10)
-browser_snapshot(filename="docs/testing/screenshots/flow1-04-analyzing.png")
+browser_snapshot()  # Verify "Analyzing" badge visible
 
 browser_wait_for(text="Ready", time=30)
-browser_snapshot(filename="docs/testing/screenshots/flow1-05-ready.png")
+browser_snapshot()  # Verify "Ready" badge and stats displayed
 
 browser_click(element="Overview tab", ref: "[role='tab'][name='Overview']")
-browser_snapshot(filename="docs/testing/screenshots/flow1-06-overview.png")
+browser_snapshot()  # Verify overview content loaded
 ```
 
 **Troubleshooting:**
@@ -159,7 +176,7 @@ browser_snapshot(filename="docs/testing/screenshots/flow1-06-overview.png")
 **MCP Tool Sequence:**
 ```
 browser_navigate(url="http://localhost:3000/projects")
-browser_snapshot(filename="docs/testing/screenshots/flow2-01-project-list.png")
+browser_snapshot()  # Verify project list page loads
 
 # Create projects (repeat 3x with different names)
 browser_click(element="Create button", ref="[data-testid='create-project']")
@@ -170,19 +187,19 @@ browser_navigate_back()
 # Test filtering
 browser_click(element="Status filter", ref="[data-testid='status-filter']")
 browser_select_option(element="Status dropdown", ref="select[name='status']", values=["ready"])
-browser_snapshot(filename="docs/testing/screenshots/flow2-02-filtered-ready.png")
+browser_snapshot()  # Verify only ready projects shown
 
 # Test search
 browser_type(element="Search box", ref="input[placeholder*='Search']", text="Alpha", slowly=false)
 browser_wait_for(time=1)
-browser_snapshot(filename="docs/testing/screenshots/flow2-03-search-alpha.png")
+browser_snapshot()  # Verify only "Alpha Project" visible
 
 # Test delete
 browser_click(element="Delete button for Gamma", ref="[data-testid='delete-gamma']")
-browser_snapshot(filename="docs/testing/screenshots/flow2-04-delete-confirm.png")
+browser_snapshot()  # Verify confirmation dialog appears
 browser_click(element="Confirm button", ref="[data-testid='confirm-delete']")
 browser_wait_for(textGone="Gamma Project", time=2)
-browser_snapshot(filename="docs/testing/screenshots/flow2-05-after-delete.png")
+browser_snapshot()  # Verify project removed from list
 ```
 
 **Troubleshooting:**
@@ -257,19 +274,19 @@ browser_click(element="Submit", ref="[type='submit']")
 
 # Monitor status changes over time
 browser_wait_for(time=2)
-browser_snapshot(filename="docs/testing/screenshots/flow3-01-status-pending.png")
+browser_snapshot()  # Verify "Pending" badge visible
 
 browser_wait_for(time=2)
-browser_snapshot(filename="docs/testing/screenshots/flow3-02-status-cloning.png")
+browser_snapshot()  # Verify "Cloning" badge visible
 
 browser_wait_for(time=5)
-browser_snapshot(filename="docs/testing/screenshots/flow3-03-status-scanning.png")
+browser_snapshot()  # Verify "Scanning" badge visible
 
 browser_wait_for(time=5)
-browser_snapshot(filename="docs/testing/screenshots/flow3-04-status-analyzing.png")
+browser_snapshot()  # Verify "Analyzing" badge visible
 
 browser_wait_for(text="Ready", time=30)
-browser_snapshot(filename="docs/testing/screenshots/flow3-05-status-ready.png")
+browser_snapshot()  # Verify "Ready" badge and complete status
 
 # Check network activity
 browser_network_requests(includeStatic=false)
@@ -352,29 +369,29 @@ browser_network_requests(includeStatic=false)
 ```
 browser_navigate(url="http://localhost:3000/projects")
 browser_click(element="First ready project", ref="[data-status='ready']:first")
-browser_snapshot(filename="docs/testing/screenshots/flow4-01-overview-tab.png")
+browser_snapshot()  # Verify Overview tab content displayed
 
 # Test Diagrams tab
 browser_click(element="Diagrams tab", ref="[role='tab'][name='Diagrams']")
 browser_wait_for(time=1)
-browser_snapshot(filename="docs/testing/screenshots/flow4-02-diagrams-tab.png")
+browser_snapshot()  # Verify Diagrams tab content loaded
 
 # Test Files tab
 browser_click(element="Files tab", ref="[role='tab'][name='Files']")
 browser_wait_for(time=1)
-browser_snapshot(filename="docs/testing/screenshots/flow4-03-files-tab.png")
+browser_snapshot()  # Verify Files tab content loaded
 
 # Test Reports tab
 browser_click(element="Reports tab", ref="[role='tab'][name='Reports']")
 browser_wait_for(time=1)
-browser_snapshot(filename="docs/testing/screenshots/flow4-04-reports-tab.png")
+browser_snapshot()  # Verify Reports tab content loaded
 
 # Test persistence
 browser_navigate_back()
 browser_wait_for(time=1)
 browser_click(element="Same project", ref="[data-status='ready']:first")
 # Check if Reports tab is still active (if persistence implemented)
-browser_snapshot(filename="docs/testing/screenshots/flow4-05-tab-persistence.png")
+browser_snapshot()  # Verify tab persistence
 ```
 
 **Troubleshooting:**
@@ -432,7 +449,7 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 2. **Cleanup:** Clear database between test runs
 3. **Timing:** Use `wait_for` instead of fixed delays
 4. **Assertions:** Verify both UI state and network responses
-5. **Screenshots:** Capture evidence at each critical step
+5. **YAML Snapshots:** Use `browser_snapshot()` to validate page structure at critical steps
 6. **Error Handling:** Document common failure modes
 
 ---
@@ -444,8 +461,8 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 2. Start frontend: `cd frontend && npm run dev`
 3. Clear database: `curl -X DELETE http://localhost:8000/api/admin/database/clear`
 4. Execute each flow using MCP Playwright tools
-5. Verify expected results
-6. Save screenshots to `docs/testing/screenshots/`
+5. Use `browser_snapshot()` to validate page structure (returns YAML inline)
+6. Verify expected results against YAML accessibility trees
 
 **Automation (Future):**
 - Install Playwright locally: `npm install -D @playwright/test`
@@ -477,7 +494,7 @@ These 4 E2E flows cover **60%+ of critical user functionality:**
 ## Future Enhancements
 
 1. **Automated E2E Suite:** Convert to Playwright test files
-2. **Visual Regression:** Compare screenshots between runs
+2. **Structural Regression:** Compare YAML accessibility trees between runs
 3. **Performance Testing:** Measure load times, API response times
 4. **Mobile Testing:** Test responsive design on mobile viewports
 5. **CI/CD Integration:** Run E2E tests on every PR

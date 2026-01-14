@@ -67,5 +67,9 @@ data/
 
 # Claude
 .claude
+
+# Playwright MCP
+.playwright-mcp/
+
 # SQLite database
 backend/*.db

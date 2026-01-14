@@ -18,6 +18,14 @@ When implementing any GitHub story/issue:
    - Update with coverage percentages, test counts, and any metrics that exceeded targets
 4. **Always verify:** Every checkbox must be validated before closing an issue
 
+**E2E Testing with MCP Playwright (CRITICAL):**
+When performing E2E tests with MCP Playwright tools:
+1. **NEVER use xvfb or attempt to fix screenshot rendering in WSL** - Headless Chromium in WSL cannot render visual content due to GPU limitations
+2. **ALWAYS use YAML accessibility tree snapshots** - Call `browser_snapshot()` WITHOUT filename parameter to get inline YAML output
+3. **Validate functionality using YAML structure** - The accessibility tree provides complete structural validation
+4. **If visual validation is required** - Run tests on native Linux with GPU support or Windows
+5. **Screenshot files will be blank/white in WSL** - This is expected and cannot be fixed with xvfb
+
 Key commands:
 - Backend: `cd backend && uvicorn app.main:app --reload`
 - Frontend: `cd frontend && npm run dev`
