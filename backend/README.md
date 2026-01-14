@@ -138,8 +138,63 @@ backend/
 
 ### Running Tests
 
+The project uses pytest for comprehensive test coverage.
+
+**Run all tests:**
 ```bash
 pytest
+```
+
+**Run with coverage:**
+```bash
+pytest --cov=app --cov-report=html --cov-report=term
+```
+
+**Run specific test file:**
+```bash
+pytest tests/unit/test_git_service.py
+```
+
+**Run specific test category:**
+```bash
+# Unit tests only
+pytest tests/unit/
+
+# Integration tests only
+pytest tests/integration/
+
+# Skip slow tests
+pytest -m "not slow"
+```
+
+**Run with verbose output:**
+```bash
+pytest -v
+```
+
+**Run tests in parallel (after installing pytest-xdist):**
+```bash
+pytest -n auto
+```
+
+**View HTML coverage report:**
+```bash
+pytest --cov=app --cov-report=html
+open htmlcov/index.html  # macOS
+# or
+xdg-open htmlcov/index.html  # Linux
+```
+
+**Test Structure:**
+```
+tests/
+├── conftest.py              # Global fixtures
+├── pytest.ini               # Pytest configuration
+├── unit/                    # Unit tests
+│   └── test_analyzers/      # Analyzer tests
+├── integration/             # Integration tests
+└── fixtures/                # Test data and fixtures
+    └── sample_repos/        # Sample repositories for testing
 ```
 
 ### Code Style
