@@ -41,6 +41,12 @@ def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
             detail="Project has not been analyzed yet. Run analysis first."
         )
 
+    # Check if diagram already exists (to preserve ID on updates)
+    existing = db.query(Diagram).filter(
+        Diagram.project_id == project.id,
+        Diagram.type == DiagramType.dependency
+    ).first()
+
     # Run analyzer to get dependency graph
     analyzer = GenericAnalyzer(
         repo_path=project.local_path,
@@ -63,29 +69,23 @@ def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
         title=f"Dependencies: {project.name}"
     )
 
-    # Create and store diagram
-    diagram = Diagram(
-        id=diagram_data["id"],
-        project_id=project.id,
-        type=DiagramType.dependency,
-        title=diagram_data["title"],
-        mermaid_code=diagram_data["mermaid_code"],
-        diagram_metadata=diagram_data["metadata"]
-    )
-
-    # Check if exists and update, otherwise insert
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.dependency
-    ).first()
-
     if existing:
-        existing.mermaid_code = diagram.mermaid_code
-        existing.diagram_metadata = diagram.diagram_metadata
-        existing.title = diagram.title
+        # Update existing diagram (preserve ID for consistency)
+        existing.mermaid_code = diagram_data["mermaid_code"]
+        existing.diagram_metadata = diagram_data["metadata"]
+        existing.title = diagram_data["title"]
         db.commit()
         return existing
     else:
+        # Create new diagram
+        diagram = Diagram(
+            id=diagram_data["id"],
+            project_id=project.id,
+            type=DiagramType.dependency,
+            title=diagram_data["title"],
+            mermaid_code=diagram_data["mermaid_code"],
+            diagram_metadata=diagram_data["metadata"]
+        )
         db.add(diagram)
         db.commit()
         db.refresh(diagram)
@@ -100,33 +100,35 @@ def generate_directory_diagram(project: Project, db: Session) -> Diagram:
             detail="Project has not been analyzed yet. Run analysis first."
         )
 
+    # Check if diagram already exists (to preserve ID on updates)
+    existing = db.query(Diagram).filter(
+        Diagram.project_id == project.id,
+        Diagram.type == DiagramType.directory
+    ).first()
+
     generator = DiagramGenerator()
     diagram_data = generator.generate_directory_diagram(
         repo_path=project.local_path,
         max_depth=3
     )
 
-    diagram = Diagram(
-        id=diagram_data["id"],
-        project_id=project.id,
-        type=DiagramType.directory,
-        title=f"Directory Structure: {project.name}",
-        mermaid_code=diagram_data["mermaid_code"],
-        diagram_metadata=diagram_data["metadata"]
-    )
-
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.directory
-    ).first()
-
     if existing:
-        existing.mermaid_code = diagram.mermaid_code
-        existing.diagram_metadata = diagram.diagram_metadata
-        existing.title = diagram.title
+        # Update existing diagram (preserve ID for consistency)
+        existing.mermaid_code = diagram_data["mermaid_code"]
+        existing.diagram_metadata = diagram_data["metadata"]
+        existing.title = f"Directory Structure: {project.name}"
         db.commit()
         return existing
     else:
+        # Create new diagram
+        diagram = Diagram(
+            id=diagram_data["id"],
+            project_id=project.id,
+            type=DiagramType.directory,
+            title=f"Directory Structure: {project.name}",
+            mermaid_code=diagram_data["mermaid_code"],
+            diagram_metadata=diagram_data["metadata"]
+        )
         db.add(diagram)
         db.commit()
         db.refresh(diagram)

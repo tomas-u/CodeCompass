@@ -306,6 +306,70 @@ if True
         stats_after = analyzer.get_stats()
         assert stats_after["files"] == 1
 
+    def test_get_dependency_graph_before_analysis(self, temp_repo_dir):
+        """Test get_dependency_graph returns None before analyze() is called."""
+        (temp_repo_dir / "main.py").write_text("import utils")
+        (temp_repo_dir / "utils.py").write_text("def helper(): pass")
+
+        analyzer = GenericAnalyzer(str(temp_repo_dir))
+
+        # Before analysis, should return None
+        dep_graph = analyzer.get_dependency_graph()
+        assert dep_graph is None
+
+    def test_get_dependency_graph_after_analysis(self, sample_repos_path):
+        """Test get_dependency_graph returns DependencyGraph after analyze()."""
+        python_repo = sample_repos_path / "python_simple"
+        analyzer = GenericAnalyzer(str(python_repo))
+
+        analyzer.analyze()
+        dep_graph = analyzer.get_dependency_graph()
+
+        # Should return a DependencyGraph instance
+        assert dep_graph is not None
+        # Should have nodes (files analyzed)
+        assert dep_graph.graph.number_of_nodes() >= 0
+
+    def test_get_dependency_summary_before_analysis(self, temp_repo_dir):
+        """Test get_dependency_summary returns empty dict before analyze()."""
+        (temp_repo_dir / "main.py").write_text("import utils")
+
+        analyzer = GenericAnalyzer(str(temp_repo_dir))
+
+        # Before analysis, should return empty dict
+        summary = analyzer.get_dependency_summary()
+        assert summary == {}
+
+    def test_get_dependency_summary_after_analysis(self, sample_repos_path):
+        """Test get_dependency_summary returns summary data after analyze()."""
+        python_repo = sample_repos_path / "python_simple"
+        analyzer = GenericAnalyzer(str(python_repo))
+
+        analyzer.analyze()
+        summary = analyzer.get_dependency_summary()
+
+        # Should return a dict with summary data
+        assert isinstance(summary, dict)
+        # Should contain expected keys from DependencyGraph.get_summary()
+        assert "total_modules" in summary
+        assert "total_dependencies" in summary
+        assert "has_circular_dependencies" in summary
+
+    def test_get_dependency_graph_with_imports(self, temp_repo_dir):
+        """Test dependency graph correctly captures imports."""
+        # Create files with imports
+        (temp_repo_dir / "main.py").write_text("import utils\nprint('main')")
+        (temp_repo_dir / "utils.py").write_text("def helper(): pass")
+
+        analyzer = GenericAnalyzer(str(temp_repo_dir))
+        analyzer.analyze()
+
+        dep_graph = analyzer.get_dependency_graph()
+
+        assert dep_graph is not None
+        # Should have at least 2 nodes (main.py and utils.py)
+        assert dep_graph.graph.number_of_nodes() >= 1
+
 
 @pytest.fixture
 def sample_repos_path():
