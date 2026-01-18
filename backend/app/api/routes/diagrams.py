@@ -146,12 +146,6 @@ def generate_directory_diagram(project: Project, db: Session, direction: str = "
             detail="Project has not been analyzed yet. Run analysis first."
         )
 
-    # Check if diagram already exists (to preserve ID on updates)
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.directory
-    ).first()
-
     generator = DiagramGenerator()
     diagram_data = generator.generate_directory_diagram(
         repo_path=project.local_path,
@@ -159,27 +153,16 @@ def generate_directory_diagram(project: Project, db: Session, direction: str = "
         direction=direction
     )
 
-    if existing:
-        # Update existing diagram (preserve ID for consistency)
-        existing.mermaid_code = diagram_data["mermaid_code"]
-        existing.diagram_metadata = diagram_data["metadata"]
-        existing.title = f"Directory Structure: {project.name}"
-        db.commit()
-        return existing
-    else:
-        # Create new diagram
-        diagram = Diagram(
-            id=diagram_data["id"],
-            project_id=project.id,
-            type=DiagramType.directory,
-            title=f"Directory Structure: {project.name}",
-            mermaid_code=diagram_data["mermaid_code"],
-            diagram_metadata=diagram_data["metadata"]
-        )
-        db.add(diagram)
-        db.commit()
-        db.refresh(diagram)
-        return diagram
+    # Direction is a display preference - always return fresh diagram without caching
+    # This ensures toggling direction always works correctly
+    return Diagram(
+        id=diagram_data["id"],
+        project_id=project.id,
+        type=DiagramType.directory,
+        title=f"Directory Structure: {project.name}",
+        mermaid_code=diagram_data["mermaid_code"],
+        diagram_metadata=diagram_data["metadata"]
+    )
 
 
 @router.get("/{project_id}/diagrams", response_model=DiagramListResponse)
@@ -246,11 +229,15 @@ async def get_diagram(
     """
     project = get_project_or_404(project_id, db)
 
-    # Always regenerate when direction is specified (user preference) or path-based queries
-    # Cache is only used for default requests without customization
-    use_cache = not regenerate and not path and direction == "LR"
+    # Direction is a display preference - never cache when direction might vary
+    # Only cache dependency diagrams without path filtering
+    use_cache = (
+        not regenerate
+        and not path
+        and diagram_type == DiagramType.dependency
+    )
 
-    # Check for cached diagram (unless regenerate requested, path specified, or direction changed)
+    # Check for cached diagram (only for dependency diagrams without customization)
     if use_cache:
         cached = db.query(Diagram).filter(
             Diagram.project_id == project_id,
