@@ -34,7 +34,7 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(10);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -86,21 +86,21 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] text-muted-foreground bg-muted/30 rounded-lg p-4">
+      <div className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground bg-muted/30 rounded-lg p-4">
         {error}
       </div>
     );
   }
 
   return (
-    <div className="relative">
+    <div className="relative h-full flex flex-col">
       {/* Controls */}
       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(0.25, z - 0.50))}>
           <ZoomOut className="h-4 w-4" />
         </Button>
-        <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.min(2, z + 0.25))}>
+        <span className="text-xs text-muted-foreground w-16 text-center">{Math.round(zoom * 100)}%</span>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.min(20, z + 0.50))}>
           <ZoomIn className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
@@ -112,16 +112,19 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
         </Button>
       </div>
 
-      {/* Diagram - uses available height */}
+      {/* Diagram - fills available height, SVG is sanitized with DOMPurify before being stored */}
       <div
         ref={containerRef}
-        className="overflow-auto p-4 bg-muted/30 rounded-lg min-h-[500px] h-[calc(100vh-400px)] flex items-center justify-center"
-        style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+        className="overflow-auto p-4 bg-muted/30 rounded-lg flex-1 min-h-[200px]"
       >
         {svg ? (
-          <div dangerouslySetInnerHTML={{ __html: svg }} />
+          <div
+            className="inline-block origin-top-left"
+            style={{ transform: `scale(${zoom})` }}
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
         ) : (
-          <div className="animate-pulse text-muted-foreground">Loading diagram...</div>
+          <div className="h-full flex items-center justify-center animate-pulse text-muted-foreground">Loading diagram...</div>
         )}
       </div>
     </div>
@@ -323,12 +326,17 @@ export function DiagramsTab() {
 
   const currentDiagramData = diagrams[activeDiagram];
 
+  // Check if we have displayable statistics
+  const hasStatistics = currentDiagramData.diagram?.metadata &&
+    Object.keys(getDisplayableStats(currentDiagramData.diagram.metadata as Record<string, unknown>)).length > 0;
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 h-full flex flex-col overflow-hidden">
+      {/* Header - fixed height */}
+      <div className="flex items-center justify-between flex-shrink-0 mb-2">
         <div>
-          <h1 className="text-2xl font-bold">Architecture Diagrams</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl font-bold">Architecture Diagrams</h1>
+          <p className="text-muted-foreground text-sm">
             Visual representations of the codebase structure and dependencies
           </p>
         </div>
@@ -346,76 +354,79 @@ export function DiagramsTab() {
         </Button>
       </div>
 
-      <Tabs value={activeDiagram} onValueChange={(v) => setActiveDiagram(v as DiagramType)}>
-        <TabsList>
-          {availableDiagrams.map((type) => (
-            <TabsTrigger key={type} value={type}>
-              {diagrams[type].title.replace(' Diagram', '').replace(' Graph', '')}
-            </TabsTrigger>
-          ))}
-          {comingSoonDiagrams.map((type) => (
-            <TabsTrigger key={type} value={type} disabled className="opacity-50">
-              {diagrams[type].title.replace(' Diagram', '')}
-              <span className="ml-1 text-xs">(Soon)</span>
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Diagram area - fills remaining space */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        <Tabs value={activeDiagram} onValueChange={(v) => setActiveDiagram(v as DiagramType)} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="flex-shrink-0">
+            {availableDiagrams.map((type) => (
+              <TabsTrigger key={type} value={type}>
+                {diagrams[type].title.replace(' Diagram', '').replace(' Graph', '')}
+              </TabsTrigger>
+            ))}
+            {comingSoonDiagrams.map((type) => (
+              <TabsTrigger key={type} value={type} disabled className="opacity-50">
+                {diagrams[type].title.replace(' Diagram', '')}
+                <span className="ml-1 text-xs">(Soon)</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        {Object.entries(diagrams).map(([type, data]) => (
-          <TabsContent key={type} value={type}>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>{data.title}</CardTitle>
-                  <CardDescription>{data.description}</CardDescription>
-                </div>
-                {data.diagram && (
-                  <div className="text-xs text-muted-foreground">
-                    Generated: {new Date(data.diagram.generated_at).toLocaleString()}
+          {Object.entries(diagrams).map(([type, data]) => (
+            <TabsContent key={type} value={type} className="flex-1 min-h-0 mt-1">
+              <Card className="h-full flex flex-col">
+                <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 py-2 px-4">
+                  <div>
+                    <CardTitle className="text-base">{data.title}</CardTitle>
+                    <CardDescription className="text-xs">{data.description}</CardDescription>
                   </div>
-                )}
-              </CardHeader>
-              <CardContent className="p-4">
-                {data.loading ? (
-                  <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] bg-muted/30 rounded-lg">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-muted-foreground">Generating diagram...</span>
-                  </div>
-                ) : data.error ? (
-                  <div className="min-h-[500px] h-[calc(100vh-400px)] flex items-center justify-center">
-                    <Alert variant="destructive" className="max-w-lg">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Error</AlertTitle>
-                      <AlertDescription>{data.error}</AlertDescription>
-                    </Alert>
-                  </div>
-                ) : data.diagram ? (
-                  <MermaidDiagram chart={data.diagram.mermaid_code} id={type} />
-                ) : (
-                  <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] bg-muted/30 rounded-lg text-muted-foreground">
-                    <Button onClick={() => fetchDiagram(type as DiagramType)}>
-                      Generate Diagram
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
-      </Tabs>
+                  {data.diagram && (
+                    <div className="text-xs text-muted-foreground">
+                      Generated: {new Date(data.diagram.generated_at).toLocaleString()}
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
+                  {data.loading ? (
+                    <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-muted-foreground">Generating diagram...</span>
+                    </div>
+                  ) : data.error ? (
+                    <div className="flex-1 min-h-[200px] flex items-center justify-center">
+                      <Alert variant="destructive" className="max-w-lg">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Error</AlertTitle>
+                        <AlertDescription>{data.error}</AlertDescription>
+                      </Alert>
+                    </div>
+                  ) : data.diagram ? (
+                    <MermaidDiagram chart={data.diagram.mermaid_code} id={type} />
+                  ) : (
+                    <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
+                      <Button onClick={() => fetchDiagram(type as DiagramType)}>
+                        Generate Diagram
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
 
-      {/* Diagram Statistics */}
-      {currentDiagramData.diagram?.metadata && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Diagram Statistics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
-              {Object.entries(getDisplayableStats(currentDiagramData.diagram.metadata as Record<string, unknown>)).map(([key, value]) => (
-                <div key={key} className="flex flex-col p-3 bg-muted/50 rounded-lg">
-                  <span className="text-muted-foreground text-xs">{key}</span>
-                  <span className="font-semibold text-lg">
+      {/* Diagram Statistics - fixed at bottom */}
+      {hasStatistics && (
+        <Card className="flex-shrink-0 mt-2">
+          <CardContent className="py-2 px-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-muted-foreground">Statistics:</span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 text-sm">
+              {Object.entries(getDisplayableStats(currentDiagramData.diagram!.metadata as Record<string, unknown>)).map(([key, value]) => (
+                <div key={key} className="flex flex-col px-2 py-1 bg-muted/50 rounded">
+                  <span className="text-muted-foreground text-xs truncate">{key}</span>
+                  <span className="font-semibold">
                     {typeof value === 'number' ? value.toLocaleString() : value}
                   </span>
                 </div>
