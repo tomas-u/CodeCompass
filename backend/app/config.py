@@ -1,7 +1,7 @@
 """Application configuration."""
 
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -14,6 +14,14 @@ class Settings(BaseSettings):
 
     # Database
     database_name: str = "codecompass.db"
+    database_url: Optional[str] = None  # Override for Docker: sqlite:///data/codecompass.db
+
+    # Data directory (for Docker volume mounts)
+    data_dir: str = "."  # Override for Docker: /app/data
+
+    # Qdrant Vector Database
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
 
     # CORS
     cors_origins: List[str] = [
