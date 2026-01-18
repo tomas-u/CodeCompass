@@ -9,6 +9,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { mockArchitectureReport } from '@/lib/mock-data';
 import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
+import { useAppStore } from '@/lib/store';
 
 const architectureMarkdown = `# Architecture Report: fastapi-example
 
@@ -171,8 +173,24 @@ Delete a project.
 `;
 
 export function ReportsTab() {
+  const { currentProjectId, projects } = useAppStore();
   const [activeReport, setActiveReport] = useState<'architecture' | 'api' | 'dependencies'>('architecture');
   const [copied, setCopied] = useState(false);
+
+  const currentProject = projects.find(p => p.id === currentProjectId);
+
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
+
+  // Show loading state while analyzing
+  if (isAnalyzing) {
+    return (
+      <div className="p-6">
+        <AnalysisInProgress status={currentProject.status} />
+      </div>
+    );
+  }
 
   const handleCopy = async (content: string) => {
     await navigator.clipboard.writeText(content);

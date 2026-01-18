@@ -173,6 +173,148 @@ export function FullPageLoading({ message }: { message?: string }) {
 }
 
 /**
+ * Project header skeleton
+ */
+export function ProjectHeaderSkeleton() {
+  return (
+    <div className="border-b border-border bg-background px-6 py-4">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0">
+          {/* Back button and title */}
+          <div className="flex items-center gap-3 mb-2">
+            <Skeleton className="h-8 w-8" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+          </div>
+          {/* Project metadata */}
+          <div className="flex items-center gap-4 ml-11">
+            <Skeleton className="h-4 w-64" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        {/* Action Buttons and Stats */}
+        <div className="ml-4 flex items-center gap-3">
+          <Skeleton className="h-10 w-28" />
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-6">
+                <div>
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className="h-6 w-12 mt-1" />
+                </div>
+                <div>
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className="h-6 w-12 mt-1" />
+                </div>
+                <div>
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-6 w-8 mt-1" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Project page skeleton (header + dashboard)
+ */
+export function ProjectPageSkeleton() {
+  return (
+    <div className="h-full flex flex-col">
+      <ProjectHeaderSkeleton />
+      <div className="flex-1 overflow-hidden">
+        <DashboardSkeleton />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Content loading placeholder - shows while analysis is in progress
+ */
+export function ContentLoading({ message = 'Loading data...' }: { message?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <div className="animate-spin rounded-full border-4 border-muted border-t-primary h-8 w-8 mb-4" />
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+/**
+ * Analysis steps with icons and descriptions
+ */
+const analysisSteps = [
+  { id: 'pending', label: 'Preparing', description: 'Setting up analysis...' },
+  { id: 'cloning', label: 'Cloning Repository', description: 'Downloading source code...' },
+  { id: 'scanning', label: 'Scanning Files', description: 'Identifying code files...' },
+  { id: 'analyzing', label: 'Analyzing Code', description: 'Understanding code structure...' },
+  { id: 'generating', label: 'Generating Reports', description: 'Creating documentation...' },
+  { id: 'indexing', label: 'Building Index', description: 'Indexing for Q&A...' },
+];
+
+/**
+ * Analysis in progress placeholder - shows step-by-step progress
+ */
+export function AnalysisInProgress({ status }: { status: string }) {
+  // Map status to step index (some statuses map to the same step)
+  const getStepIndex = (s: string) => {
+    const index = analysisSteps.findIndex(step => step.id === s);
+    return index >= 0 ? index : 0;
+  };
+
+  const currentStepIndex = getStepIndex(status);
+  const currentStep = analysisSteps[currentStepIndex];
+
+  return (
+    <div className="flex flex-col items-center justify-center py-12">
+      {/* Current step message */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="animate-spin rounded-full border-4 border-muted border-t-primary h-8 w-8" />
+        <div>
+          <p className="text-sm font-medium">{currentStep.label}</p>
+          <p className="text-xs text-muted-foreground">{currentStep.description}</p>
+        </div>
+      </div>
+
+      {/* Step indicators */}
+      <div className="flex items-center gap-2 mb-4">
+        {analysisSteps.map((step, index) => {
+          const isComplete = index < currentStepIndex;
+          const isCurrent = index === currentStepIndex;
+
+          return (
+            <div
+              key={step.id}
+              className={`w-2.5 h-2.5 rounded-full transition-all ${
+                isComplete
+                  ? 'bg-green-500'
+                  : isCurrent
+                  ? 'bg-primary animate-pulse'
+                  : 'bg-muted'
+              }`}
+              title={step.label}
+            />
+          );
+        })}
+      </div>
+
+      {/* Progress text */}
+      <p className="text-xs text-muted-foreground">
+        Step {currentStepIndex + 1} of {analysisSteps.length}
+      </p>
+    </div>
+  );
+}
+
+/**
  * Project dropdown skeleton (for Header dropdown)
  */
 export function ProjectDropdownSkeleton({ count = 2 }: { count?: number }) {

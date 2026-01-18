@@ -60,19 +60,21 @@ export function useProjectStatus({
         return;
       }
 
-      // If status indicates analysis in progress, fetch analysis details
-      const activeStates = ['analyzing', 'scanning', 'cloning'];
-      if (activeStates.includes(project.status)) {
-        try {
-          const analysis = await api.getAnalysisStatus(projectId);
-          if (onAnalysisUpdate) {
-            onAnalysisUpdate(analysis);
-          }
-        } catch (analysisError) {
-          // Analysis endpoint might not be available yet, continue polling
-          console.debug('Analysis not available yet:', getErrorMessage(analysisError));
-        }
-      }
+      // NOTE: Analysis endpoint not yet implemented for real projects.
+      // The project status from getProject() is sufficient for now.
+      // When the analysis endpoint is implemented, uncomment this:
+      //
+      // const activeStates = ['analyzing', 'scanning', 'cloning'];
+      // if (activeStates.includes(project.status)) {
+      //   try {
+      //     const analysis = await api.getAnalysisStatus(projectId);
+      //     if (onAnalysisUpdate) {
+      //       onAnalysisUpdate(analysis);
+      //     }
+      //   } catch (analysisError) {
+      //     console.debug('Analysis not available yet:', getErrorMessage(analysisError));
+      //   }
+      // }
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       errorRef.current = errorMessage;
@@ -92,8 +94,10 @@ export function useProjectStatus({
 
     isPollingRef.current = true;
 
-    // Fetch immediately
-    fetchStatus();
+    // Defer first fetch to avoid calling setState during render
+    setTimeout(() => {
+      fetchStatus();
+    }, 0);
 
     // Set up interval
     intervalRef.current = setInterval(fetchStatus, POLLING_INTERVAL);
