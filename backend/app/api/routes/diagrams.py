@@ -132,13 +132,19 @@ def generate_dependency_diagram(
         return diagram
 
 
-def generate_directory_diagram(project: Project, db: Session, direction: str = "LR") -> Diagram:
+def generate_directory_diagram(
+    project: Project,
+    db: Session,
+    direction: str = "LR",
+    path: str = ""
+) -> Diagram:
     """Generate directory structure diagram for a project.
 
     Args:
         project: The project to generate diagram for
         db: Database session
         direction: Graph direction - "LR" (left-right) or "TD" (top-down)
+        path: Subdirectory to start from (enables drill-down navigation)
     """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
@@ -151,7 +157,8 @@ def generate_directory_diagram(project: Project, db: Session, direction: str = "
         repo_path=project.local_path,
         max_depth=3,
         direction=direction,
-        project_name=project.name
+        project_name=project.name,
+        base_path=path
     )
 
     # Direction is a display preference - always return fresh diagram without caching
@@ -259,7 +266,7 @@ async def get_diagram(
     if diagram_type == DiagramType.dependency:
         diagram = generate_dependency_diagram(project, db, path=path, depth=depth, direction=direction)
     elif diagram_type == DiagramType.directory:
-        diagram = generate_directory_diagram(project, db, direction=direction)
+        diagram = generate_directory_diagram(project, db, direction=direction, path=path)
     elif diagram_type == DiagramType.architecture:
         # Architecture diagram not yet implemented
         raise HTTPException(

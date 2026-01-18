@@ -616,7 +616,8 @@ class DiagramGenerator:
         repo_path: str,
         max_depth: int = 3,
         direction: str = "LR",
-        project_name: str = None
+        project_name: str = None,
+        base_path: str = ""
     ) -> Dict[str, Any]:
         """
         Generate a directory structure diagram.
@@ -626,21 +627,47 @@ class DiagramGenerator:
             max_depth: Maximum directory depth to show
             direction: Graph direction - "LR" (left-right) or "TD" (top-down)
             project_name: Optional project name for root node (defaults to directory name)
+            base_path: Subdirectory to start from (empty = root, enables drill-down)
 
         Returns:
             Dictionary with diagram data
         """
         lines = [f"graph {direction}"]
-        metadata = {"nodes": {}, "stats": {"type": "directory", "direction": direction}}
 
         root = Path(repo_path)
+
+        # Collect top-level directories for navigation
+        try:
+            top_level_dirs = sorted([
+                d.name for d in root.iterdir()
+                if d.is_dir() and not d.name.startswith('.')
+            ])
+        except PermissionError:
+            top_level_dirs = []
+
+        metadata = {
+            "nodes": {},
+            "stats": {"type": "directory", "direction": direction},
+            "available_paths": top_level_dirs,
+            "current_path": base_path
+        }
+
+        # Determine the starting directory
+        if base_path:
+            start_dir = root / base_path
+            if not start_dir.exists() or not start_dir.is_dir():
+                start_dir = root
+                base_path = ""
+            root_name = base_path.replace('"', "'")
+        else:
+            start_dir = root
+            root_name = (project_name or root.name).replace('"', "'")
+
         root_id = "root"
-        # Use project name if provided, otherwise fall back to directory name
-        root_name = (project_name or root.name).replace('"', "'")
         lines.append(f'    {root_id}["{root_name}"]')
 
         self._add_directory_nodes(
-            lines, metadata, root, root_id, current_depth=0, max_depth=max_depth
+            lines, metadata, start_dir, root_id, current_depth=0, max_depth=max_depth
         )
 
         # Style the root differently
@@ -650,7 +677,7 @@ class DiagramGenerator:
         return {
             "id": str(uuid4()),
             "type": DiagramType.directory,
-            "title": "Directory Structure",
+            "title": f"Directory Structure: {root_name}" if base_path else "Directory Structure",
             "mermaid_code": "\n".join(lines),
             "metadata": metadata
         }

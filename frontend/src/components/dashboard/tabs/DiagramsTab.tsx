@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2, ArrowRight, ArrowDown } from 'lucide-react';
+import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2, ArrowRight, ArrowDown, FolderTree, Home } from 'lucide-react';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -176,32 +176,47 @@ export function DiagramsTab() {
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
   const [diagramDirection, setDiagramDirection] = useState<'LR' | 'TD'>('LR');
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [availablePaths, setAvailablePaths] = useState<string[]>([]);
 
   const currentProject = projects.find(p => p.id === currentProjectId);
   const isProjectReady = currentProject?.status === 'ready';
 
   // Fetch directory diagram
-  const fetchDirectoryDiagram = useCallback(async (direction: 'LR' | 'TD' = diagramDirection) => {
+  const fetchDirectoryDiagram = useCallback(async (
+    direction: 'LR' | 'TD' = diagramDirection,
+    path: string = currentPath
+  ) => {
     if (!currentProjectId || !isProjectReady) return;
 
     setDirectoryLoading(true);
     setDirectoryError(null);
 
     try {
-      const diagram = await api.getDiagram(currentProjectId, 'directory', { direction });
+      const diagram = await api.getDiagram(currentProjectId, 'directory', { direction, path });
       setDirectoryDiagram(diagram);
+      // Extract available paths from metadata for navigation
+      if (diagram.metadata?.available_paths) {
+        setAvailablePaths(diagram.metadata.available_paths as string[]);
+      }
     } catch (err: any) {
       setDirectoryError(err?.message || 'Failed to load directory diagram');
     } finally {
       setDirectoryLoading(false);
     }
-  }, [currentProjectId, isProjectReady, diagramDirection]);
+  }, [currentProjectId, isProjectReady, diagramDirection, currentPath]);
 
   // Toggle diagram direction
   const toggleDirection = useCallback(() => {
     const newDirection = diagramDirection === 'LR' ? 'TD' : 'LR';
     setDiagramDirection(newDirection);
-    fetchDirectoryDiagram(newDirection);
+    fetchDirectoryDiagram(newDirection, currentPath);
+  }, [diagramDirection, currentPath, fetchDirectoryDiagram]);
+
+  // Navigate to a subdirectory
+  const navigateToPath = useCallback((path: string) => {
+    setCurrentPath(path);
+    fetchDirectoryDiagram(diagramDirection, path);
   }, [diagramDirection, fetchDirectoryDiagram]);
 
   // Load directory diagram when tab is selected
@@ -215,6 +230,8 @@ export function DiagramsTab() {
   useEffect(() => {
     setDirectoryDiagram(null);
     setDirectoryError(null);
+    setCurrentPath('');
+    setAvailablePaths([]);
   }, [currentProjectId]);
 
   if (!currentProject) {
@@ -268,7 +285,37 @@ export function DiagramsTab() {
                     File system organization and folder hierarchy
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
+                  {/* Navigation dropdown */}
+                  {availablePaths.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {currentPath && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigateToPath('')}
+                          disabled={directoryLoading}
+                          title="Back to root"
+                        >
+                          <Home className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <select
+                        className="h-8 px-2 text-sm border rounded-md bg-background"
+                        value={currentPath}
+                        onChange={(e) => navigateToPath(e.target.value)}
+                        disabled={directoryLoading}
+                      >
+                        <option value="">Root (all)</option>
+                        {availablePaths.map((path) => (
+                          <option key={path} value={path}>
+                            {path}/
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="w-px h-6 bg-border" />
                   <Button
                     variant="outline"
                     size="sm"
