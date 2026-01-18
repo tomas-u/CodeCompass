@@ -1,36 +1,53 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2, Home, ChevronRight, FolderTree } from 'lucide-react';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import type { Diagram, DiagramType } from '@/types/api';
 
-// Initialize mermaid with increased maxTextSize for large diagrams
+// Initialize mermaid with increased maxTextSize and better readability settings
 mermaid.initialize({
   startOnLoad: false,
   theme: 'neutral',
   securityLevel: 'loose',
   maxTextSize: 100000, // Increased from default 50000 to handle larger diagrams
+  themeVariables: {
+    fontSize: '16px',
+    fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+  },
   flowchart: {
     useMaxWidth: true,
     htmlLabels: true,
     curve: 'basis',
+    nodeSpacing: 30,
+    rankSpacing: 50,
+    padding: 15,
   },
 });
 
 interface MermaidDiagramProps {
   chart: string;
   id: string;
+  metadata?: Record<string, any>;
+  onNodeClick?: (nodeId: string, nodeData: any) => void;
 }
 
-function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
+function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +123,51 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 
     renderDiagram();
   }, [chart, id]);
+
+  // Add click handlers to directory nodes after SVG is rendered
+  useEffect(() => {
+    if (!svg || !containerRef.current || !onNodeClick || !metadata?.nodes) return;
+
+    const container = containerRef.current;
+    const nodes = metadata.nodes as Record<string, any>;
+
+    // Find all clickable directory nodes and add click handlers
+    const handleNodeClick = (e: MouseEvent) => {
+      const target = e.target as Element;
+      // Find the closest node group (g element with class 'node')
+      const nodeGroup = target.closest('.node');
+      if (!nodeGroup) return;
+
+      // Get the node ID from the group's id attribute
+      const nodeId = nodeGroup.getAttribute('id');
+      if (!nodeId) return;
+
+      // Check if this node is a clickable directory
+      const nodeData = nodes[nodeId];
+      if (nodeData?.type === 'directory' && nodeData?.is_clickable) {
+        e.preventDefault();
+        e.stopPropagation();
+        onNodeClick(nodeId, nodeData);
+      }
+    };
+
+    container.addEventListener('click', handleNodeClick);
+
+    // Add visual indication for clickable nodes
+    Object.entries(nodes).forEach(([nodeId, nodeData]: [string, any]) => {
+      if (nodeData?.type === 'directory' && nodeData?.is_clickable) {
+        const nodeElement = container.querySelector(`#${CSS.escape(nodeId)}`);
+        if (nodeElement) {
+          nodeElement.classList.add('clickable-node');
+          (nodeElement as HTMLElement).style.cursor = 'pointer';
+        }
+      }
+    });
+
+    return () => {
+      container.removeEventListener('click', handleNodeClick);
+    };
+  }, [svg, metadata, onNodeClick]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(chart);
@@ -199,14 +261,17 @@ function getDisplayableStats(metadata: Record<string, unknown>): Record<string, 
   const stats = metadata.stats as Record<string, unknown> | undefined;
   if (stats) {
     if (typeof stats.total_nodes === 'number') displayable['Total Nodes'] = stats.total_nodes;
+    if (typeof stats.total_nodes_in_graph === 'number') displayable['Total Nodes'] = stats.total_nodes_in_graph;
     if (typeof stats.total_edges === 'number') displayable['Total Edges'] = stats.total_edges;
     if (typeof stats.max_depth === 'number') displayable['Max Depth'] = stats.max_depth;
+    if (typeof stats.visible_nodes === 'number') displayable['Visible Nodes'] = stats.visible_nodes;
+    if (typeof stats.directory_groups === 'number') displayable['Dir Groups'] = stats.directory_groups;
   }
 
   // Count items in complex objects instead of showing raw data
   if (metadata.nodes && typeof metadata.nodes === 'object' && !Array.isArray(metadata.nodes)) {
     const nodeCount = Object.keys(metadata.nodes as object).length;
-    if (!displayable['Total Nodes']) displayable['Node Count'] = nodeCount;
+    if (!displayable['Total Nodes'] && !displayable['Visible Nodes']) displayable['Node Count'] = nodeCount;
   }
   if (Array.isArray(metadata.edges)) {
     const edgeCount = metadata.edges.length;
@@ -215,12 +280,18 @@ function getDisplayableStats(metadata: Record<string, unknown>): Record<string, 
   if (metadata.groups && typeof metadata.groups === 'object') {
     displayable['Group Count'] = Object.keys(metadata.groups as object).length;
   }
+  if (metadata.directory_groups && typeof metadata.directory_groups === 'object') {
+    displayable['Directories'] = Object.keys(metadata.directory_groups as object).length;
+  }
   if (metadata.colors && typeof metadata.colors === 'object') {
     displayable['Languages'] = Object.keys(metadata.colors as object).length;
   }
 
   // Include simple scalar values directly (excluding known complex keys)
-  const excludeKeys = new Set(['nodes', 'edges', 'groups', 'colors', 'stats']);
+  const excludeKeys = new Set([
+    'nodes', 'edges', 'groups', 'colors', 'stats',
+    'available_paths', 'directory_groups', 'current_path', 'depth'
+  ]);
   for (const [key, value] of Object.entries(metadata)) {
     if (excludeKeys.has(key)) continue;
     if (typeof value === 'string' || typeof value === 'number') {
@@ -278,12 +349,16 @@ export function DiagramsTab() {
   });
   const [regenerating, setRegenerating] = useState(false);
 
+  // Drill-down navigation state (for dependency diagrams)
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const [availablePaths, setAvailablePaths] = useState<string[]>([]);
+
   // Get current project
   const currentProject = projects.find(p => p.id === currentProjectId);
   const isProjectReady = currentProject?.status === 'ready';
 
-  // Fetch a specific diagram
-  const fetchDiagram = useCallback(async (type: DiagramType) => {
+  // Fetch a specific diagram with optional path for drill-down
+  const fetchDiagram = useCallback(async (type: DiagramType, path: string = '') => {
     if (!currentProjectId || !isProjectReady) return;
 
     setDiagrams(prev => ({
@@ -292,7 +367,16 @@ export function DiagramsTab() {
     }));
 
     try {
-      const diagram = await api.getDiagram(currentProjectId, type);
+      const diagram = await api.getDiagram(currentProjectId, type, {
+        path: type === 'dependency' ? path : undefined,
+        depth: 1,
+      });
+
+      // Extract available paths from metadata for navigation
+      if (type === 'dependency' && diagram.metadata?.available_paths) {
+        setAvailablePaths(diagram.metadata.available_paths as string[]);
+      }
+
       setDiagrams(prev => ({
         ...prev,
         [type]: { ...prev[type], diagram, loading: false },
@@ -314,9 +398,37 @@ export function DiagramsTab() {
     const currentDiagram = diagrams[activeDiagram];
     // Don't fetch if we already have the diagram, are currently loading, or had an error
     if (currentProjectId && isProjectReady && !currentDiagram.diagram && !currentDiagram.loading && !currentDiagram.error) {
-      fetchDiagram(activeDiagram);
+      fetchDiagram(activeDiagram, currentPath);
     }
-  }, [activeDiagram, currentProjectId, isProjectReady, fetchDiagram, diagrams]);
+  }, [activeDiagram, currentProjectId, isProjectReady, fetchDiagram, diagrams, currentPath]);
+
+  // Refetch when path changes for dependency diagram
+  useEffect(() => {
+    if (activeDiagram === 'dependency' && currentProjectId && isProjectReady) {
+      fetchDiagram('dependency', currentPath);
+    }
+  }, [currentPath, activeDiagram, currentProjectId, isProjectReady, fetchDiagram]);
+
+  // Reset path when project changes
+  useEffect(() => {
+    setCurrentPath('');
+    setAvailablePaths([]);
+  }, [currentProjectId]);
+
+  // Handle node click for drill-down navigation
+  const handleNodeClick = useCallback((_nodeId: string, nodeData: any) => {
+    if (nodeData?.type === 'directory' && nodeData?.directory) {
+      setCurrentPath(nodeData.directory);
+    }
+  }, []);
+
+  // Navigate to a specific path
+  const navigateToPath = useCallback((path: string) => {
+    setCurrentPath(path);
+  }, []);
+
+  // Get breadcrumb segments
+  const breadcrumbSegments = currentPath ? currentPath.split('/').filter(Boolean) : [];
 
   // Regenerate all diagrams
   const handleRegenerateAll = async () => {
@@ -432,6 +544,75 @@ export function DiagramsTab() {
                     </div>
                   )}
                 </CardHeader>
+
+                {/* Drill-down navigation for dependency diagrams */}
+                {type === 'dependency' && (availablePaths.length > 0 || currentPath) && (
+                  <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+                    {/* Breadcrumb navigation */}
+                    <div className="flex items-center gap-1 text-sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2"
+                        onClick={() => navigateToPath('')}
+                        disabled={!currentPath}
+                      >
+                        <Home className="h-4 w-4 mr-1" />
+                        Root
+                      </Button>
+                      {breadcrumbSegments.map((segment, index) => (
+                        <div key={index} className="flex items-center">
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => navigateToPath(breadcrumbSegments.slice(0, index + 1).join('/'))}
+                            disabled={index === breadcrumbSegments.length - 1}
+                          >
+                            {segment}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Dropdown for quick navigation */}
+                    {availablePaths.length > 0 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 ml-auto">
+                            <FolderTree className="h-4 w-4 mr-1" />
+                            Navigate
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto w-[250px]">
+                          <DropdownMenuLabel>Navigate to directory</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => navigateToPath('')}>
+                            <Home className="h-4 w-4 mr-2" />
+                            Root (top-level)
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {availablePaths.slice(0, 50).map((path) => (
+                            <DropdownMenuItem
+                              key={path}
+                              onClick={() => navigateToPath(path)}
+                              className={currentPath === path ? 'bg-accent' : ''}
+                            >
+                              <span className="truncate">{path}</span>
+                            </DropdownMenuItem>
+                          ))}
+                          {availablePaths.length > 50 && (
+                            <DropdownMenuItem disabled>
+                              ... and {availablePaths.length - 50} more
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                )}
+
                 <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
                   {data.loading ? (
                     <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg">
@@ -447,10 +628,15 @@ export function DiagramsTab() {
                       </Alert>
                     </div>
                   ) : data.diagram ? (
-                    <MermaidDiagram chart={data.diagram.mermaid_code} id={type} />
+                    <MermaidDiagram
+                      chart={data.diagram.mermaid_code}
+                      id={type}
+                      metadata={type === 'dependency' ? (data.diagram.metadata as Record<string, any>) : undefined}
+                      onNodeClick={type === 'dependency' ? handleNodeClick : undefined}
+                    />
                   ) : (
                     <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
-                      <Button onClick={() => fetchDiagram(type as DiagramType)}>
+                      <Button onClick={() => fetchDiagram(type as DiagramType, '')}>
                         Generate Diagram
                       </Button>
                     </div>

@@ -98,6 +98,222 @@ class DiagramGenerator:
                 dependency_graph, title, circular_nodes, circular_edges
             )
 
+    def generate_dependency_diagram_for_path(
+        self,
+        dependency_graph: DependencyGraph,
+        base_path: str = "",
+        depth: int = 1,
+        title: str = "Module Dependencies"
+    ) -> Dict[str, Any]:
+        """
+        Generate a dependency diagram filtered to a specific directory path.
+
+        This enables drill-down navigation for large codebases:
+        - base_path="" shows top-level directories only
+        - base_path="games" shows contents of games/ directory
+        - depth=1 shows immediate children only, depth=2 shows grandchildren, etc.
+
+        Args:
+            dependency_graph: The dependency graph to visualize
+            base_path: Directory path to filter to (empty string = root level)
+            depth: How many levels deep to show (1 = immediate children only)
+            title: Title for the diagram
+
+        Returns:
+            Dictionary containing:
+            - id: Unique diagram ID
+            - type: DiagramType.dependency
+            - title: Diagram title
+            - mermaid_code: Generated Mermaid code
+            - metadata: Including available_paths for navigation
+        """
+        graph = dependency_graph.graph
+
+        # Normalize base_path (remove trailing slashes)
+        base_path = base_path.strip("/")
+
+        # Collect all unique directory paths for navigation
+        all_directories: Set[str] = set()
+        for node in graph.nodes():
+            path = Path(node)
+            # Add all parent directories
+            for i in range(len(path.parts) - 1):  # Exclude filename
+                dir_path = "/".join(path.parts[:i+1])
+                if dir_path:
+                    all_directories.add(dir_path)
+
+        # Filter nodes based on base_path and depth
+        filtered_nodes: Set[str] = set()
+        directory_nodes: Dict[str, Set[str]] = defaultdict(set)  # dir -> files in that dir
+
+        for node in graph.nodes():
+            node_path = Path(node)
+            node_parts = node_path.parts[:-1]  # Directory parts (exclude filename)
+            node_dir = "/".join(node_parts) if node_parts else ""
+
+            if base_path:
+                # Check if node is under the base_path
+                base_parts = tuple(base_path.split("/"))
+                if len(node_parts) < len(base_parts):
+                    continue
+                if node_parts[:len(base_parts)] != base_parts:
+                    continue
+
+                # Check depth - how many levels below base_path
+                relative_depth = len(node_parts) - len(base_parts)
+                if relative_depth >= depth:
+                    # Group by directory at depth limit
+                    group_dir = "/".join(node_parts[:len(base_parts) + depth])
+                    directory_nodes[group_dir].add(node)
+                else:
+                    # Include the file directly
+                    filtered_nodes.add(node)
+            else:
+                # Root level - show top-level directories
+                if len(node_parts) >= depth:
+                    # Group by directory at depth
+                    group_dir = "/".join(node_parts[:depth])
+                    directory_nodes[group_dir].add(node)
+                else:
+                    # Root-level files
+                    filtered_nodes.add(node)
+
+        # Generate Mermaid code
+        lines = ["graph TD"]
+        metadata = {
+            "nodes": {},
+            "directory_groups": {},
+            "edges": [],
+            "available_paths": sorted(list(all_directories)),
+            "current_path": base_path,
+            "depth": depth,
+            "stats": {
+                "total_nodes_in_graph": graph.number_of_nodes(),
+                "visible_nodes": len(filtered_nodes),
+                "directory_groups": len(directory_nodes),
+            },
+            "colors": LANGUAGE_COLORS
+        }
+
+        # Track node IDs for edges
+        node_ids: Dict[str, str] = {}
+        group_file_mapping: Dict[str, Set[str]] = {}  # group_id -> set of original file paths
+
+        # Add directory group nodes (collapsed directories)
+        for directory, files in sorted(directory_nodes.items()):
+            group_id = self._sanitize_node_id(f"dir_{directory}")
+            node_ids[directory] = group_id
+            group_file_mapping[group_id] = files
+
+            # Count files and get primary language
+            languages = [graph.nodes[f].get("language", "default") for f in files if f in graph.nodes]
+            primary_language = max(set(languages), key=languages.count) if languages else "default"
+
+            # Display name (last part of directory path)
+            display_name = directory.split("/")[-1] if "/" in directory else directory
+            file_count = len(files)
+
+            # Use folder icon style - clickable to drill down
+            lines.append(f'    {group_id}["{display_name}/ ({file_count} files)"]')
+
+            metadata["directory_groups"][group_id] = {
+                "directory": directory,
+                "file_count": file_count,
+                "primary_language": primary_language,
+                "files": list(files)[:10],  # Include first 10 files for preview
+            }
+            metadata["nodes"][group_id] = {
+                "type": "directory",
+                "directory": directory,
+                "file_count": file_count,
+                "is_clickable": True,
+            }
+
+        # Add individual file nodes
+        for node in sorted(filtered_nodes):
+            node_data = graph.nodes.get(node, {})
+            node_id = self._sanitize_node_id(node)
+            node_ids[node] = node_id
+
+            label = self._get_display_label(node)
+            language = node_data.get("language", "default")
+
+            lines.append(f'    {node_id}["{label}"]')
+
+            metadata["nodes"][node_id] = {
+                "type": "file",
+                "file_path": node,
+                "module_name": node_data.get("module_name", node),
+                "language": language,
+                "is_clickable": False,
+            }
+
+        lines.append("")
+
+        # Generate edges
+        # For directory groups, we need to aggregate edges
+        edge_set: Set[Tuple[str, str]] = set()
+
+        for source, target, edge_data in graph.edges(data=True):
+            source_id = None
+            target_id = None
+
+            # Find source ID (either direct node or its containing group)
+            if source in node_ids:
+                source_id = node_ids[source]
+            else:
+                # Check if source is in any directory group
+                for group_id, files in group_file_mapping.items():
+                    if source in files:
+                        source_id = group_id
+                        break
+
+            # Find target ID
+            if target in node_ids:
+                target_id = node_ids[target]
+            else:
+                # Check if target is in any directory group
+                for group_id, files in group_file_mapping.items():
+                    if target in files:
+                        target_id = group_id
+                        break
+
+            # Only add edge if both ends are visible and different
+            if source_id and target_id and source_id != target_id:
+                edge_key = (source_id, target_id)
+                if edge_key not in edge_set:
+                    edge_set.add(edge_key)
+                    lines.append(f"    {source_id} --> {target_id}")
+                    metadata["edges"].append({
+                        "source": source_id,
+                        "target": target_id,
+                    })
+
+        # Add styling
+        lines.append("")
+
+        # Style directory groups differently (folder color)
+        for group_id in group_file_mapping.keys():
+            lines.append(f"    style {group_id} fill:#FFE082,stroke:#FFA000,color:#000")
+
+        # Style file nodes by language
+        for node in filtered_nodes:
+            node_id = node_ids.get(node)
+            if node_id:
+                language = graph.nodes.get(node, {}).get("language", "default")
+                style = LANGUAGE_STYLES.get(language, LANGUAGE_STYLES["default"])
+                lines.append(f"    style {node_id} {style}")
+
+        mermaid_code = "\n".join(lines)
+
+        return {
+            "id": str(uuid4()),
+            "type": DiagramType.dependency,
+            "title": f"{title} - /{base_path}" if base_path else title,
+            "mermaid_code": mermaid_code,
+            "metadata": metadata
+        }
+
     def _generate_flat_diagram(
         self,
         dependency_graph: DependencyGraph,

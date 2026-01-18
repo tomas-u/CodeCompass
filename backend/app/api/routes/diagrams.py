@@ -33,19 +33,25 @@ def get_project_or_404(project_id: str, db: Session) -> Project:
     return project
 
 
-def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
-    """Generate dependency diagram for a project."""
+def generate_dependency_diagram(
+    project: Project,
+    db: Session,
+    path: str = "",
+    depth: int = 1
+) -> Diagram:
+    """Generate dependency diagram for a project.
+
+    Args:
+        project: The project to generate diagram for
+        db: Database session
+        path: Directory path to filter to (empty = root level for drill-down)
+        depth: How many directory levels to show
+    """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
             status_code=400,
             detail="Project has not been analyzed yet. Run analysis first."
         )
-
-    # Check if diagram already exists (to preserve ID on updates)
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.dependency
-    ).first()
 
     # Run analyzer to get dependency graph
     analyzer = GenericAnalyzer(
@@ -62,12 +68,42 @@ def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
             detail="Failed to build dependency graph"
         )
 
-    # Generate diagram
+    # Generate diagram - use path-based if path is specified or graph is large
     generator = DiagramGenerator()
-    diagram_data = generator.generate_dependency_diagram(
-        dep_graph,
-        title=f"Dependencies: {project.name}"
-    )
+    node_count = dep_graph.graph.number_of_nodes()
+
+    # Use drill-down mode for large graphs OR when path is specified
+    if path or node_count > generator.GROUPING_THRESHOLD:
+        diagram_data = generator.generate_dependency_diagram_for_path(
+            dep_graph,
+            base_path=path,
+            depth=depth,
+            title=f"Dependencies: {project.name}"
+        )
+    else:
+        # Small graph - show everything
+        diagram_data = generator.generate_dependency_diagram(
+            dep_graph,
+            title=f"Dependencies: {project.name}"
+        )
+
+    # For path-based queries, don't cache (dynamic content)
+    if path:
+        # Return a temporary diagram object without persisting
+        return Diagram(
+            id=diagram_data["id"],
+            project_id=project.id,
+            type=DiagramType.dependency,
+            title=diagram_data["title"],
+            mermaid_code=diagram_data["mermaid_code"],
+            diagram_metadata=diagram_data["metadata"]
+        )
+
+    # Check if diagram already exists (to preserve ID on updates)
+    existing = db.query(Diagram).filter(
+        Diagram.project_id == project.id,
+        Diagram.type == DiagramType.dependency
+    ).first()
 
     if existing:
         # Update existing diagram (preserve ID for consistency)
@@ -181,6 +217,8 @@ async def get_diagram(
     project_id: str,
     diagram_type: DiagramType,
     regenerate: bool = False,
+    path: str = "",
+    depth: int = 1,
     db: Session = Depends(get_db)
 ):
     """
@@ -190,11 +228,16 @@ async def get_diagram(
         project_id: Project ID
         diagram_type: Type of diagram to get
         regenerate: If True, regenerate even if cached
+        path: For dependency diagrams, filter to this directory path (enables drill-down)
+        depth: For dependency diagrams, how many directory levels to show
     """
     project = get_project_or_404(project_id, db)
 
-    # Check for cached diagram (unless regenerate requested)
-    if not regenerate:
+    # For path-based queries, always generate fresh (don't use cache)
+    use_cache = not regenerate and not path
+
+    # Check for cached diagram (unless regenerate requested or path specified)
+    if use_cache:
         cached = db.query(Diagram).filter(
             Diagram.project_id == project_id,
             Diagram.type == diagram_type
@@ -212,7 +255,7 @@ async def get_diagram(
 
     # Generate diagram based on type
     if diagram_type == DiagramType.dependency:
-        diagram = generate_dependency_diagram(project, db)
+        diagram = generate_dependency_diagram(project, db, path=path, depth=depth)
     elif diagram_type == DiagramType.directory:
         diagram = generate_directory_diagram(project, db)
     elif diagram_type == DiagramType.architecture:
@@ -240,7 +283,7 @@ async def get_diagram(
         title=diagram.title,
         mermaid_code=diagram.mermaid_code,
         metadata=diagram.diagram_metadata,
-        generated_at=diagram.created_at
+        generated_at=diagram.created_at or datetime.utcnow()
     )
 
 

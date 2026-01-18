@@ -341,9 +341,35 @@ class CodeCompassAPI {
 
   /**
    * Get specific diagram
+   *
+   * @param projectId - Project ID
+   * @param type - Diagram type
+   * @param options - Optional parameters for drill-down navigation
    */
-  async getDiagram(projectId: string, type: DiagramType): Promise<Diagram> {
-    return request<Diagram>(`/api/projects/${projectId}/diagrams/${type}`);
+  async getDiagram(
+    projectId: string,
+    type: DiagramType,
+    options?: {
+      path?: string;
+      depth?: number;
+      regenerate?: boolean;
+    }
+  ): Promise<Diagram> {
+    const queryParams = new URLSearchParams();
+    if (options?.path !== undefined) {
+      queryParams.append('path', options.path);
+    }
+    if (options?.depth !== undefined) {
+      queryParams.append('depth', options.depth.toString());
+    }
+    if (options?.regenerate) {
+      queryParams.append('regenerate', 'true');
+    }
+
+    const query = queryParams.toString();
+    const endpoint = `/api/projects/${projectId}/diagrams/${type}${query ? `?${query}` : ''}`;
+
+    return request<Diagram>(endpoint);
   }
 
   /**
