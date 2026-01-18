@@ -146,9 +146,13 @@ class GitignoreParser:
             file_path_obj = Path(file_path)
             repo_path_obj = Path(repo_path)
 
-            if file_path_obj.is_absolute():
+            # Always try to compute relative path from repo root
+            # This handles both absolute and relative paths that include the repo path
+            try:
                 relative_path = file_path_obj.relative_to(repo_path_obj)
-            else:
+            except ValueError:
+                # Path doesn't start with repo_path, use as-is
+                # This can happen for paths already relative to repo root
                 relative_path = file_path_obj
 
             # Convert to POSIX path for matching
