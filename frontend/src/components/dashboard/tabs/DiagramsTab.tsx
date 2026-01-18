@@ -309,7 +309,7 @@ export function DiagramsTab() {
                         <option value="">Root (all)</option>
                         {availablePaths.map((path) => (
                           <option key={path} value={path}>
-                            {path}/
+                            {path}
                           </option>
                         ))}
                       </select>
