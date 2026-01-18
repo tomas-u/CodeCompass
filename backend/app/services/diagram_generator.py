@@ -178,8 +178,8 @@ class DiagramGenerator:
                     # Root-level files
                     filtered_nodes.add(node)
 
-        # Generate Mermaid code
-        lines = ["graph TD"]
+        # Generate Mermaid code (LR = left-to-right for better readability)
+        lines = ["graph LR"]
         metadata = {
             "nodes": {},
             "directory_groups": {},
@@ -323,7 +323,7 @@ class DiagramGenerator:
     ) -> Dict[str, Any]:
         """Generate a flat (non-grouped) dependency diagram."""
         graph = dependency_graph.graph
-        lines = ["graph TD"]
+        lines = ["graph LR"]
         metadata = {
             "nodes": {},
             "edges": [],
@@ -414,7 +414,7 @@ class DiagramGenerator:
     ) -> Dict[str, Any]:
         """Generate a grouped diagram for large codebases."""
         graph = dependency_graph.graph
-        lines = ["graph TD"]
+        lines = ["graph LR"]
         metadata = {
             "nodes": {},
             "groups": {},
