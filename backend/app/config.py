@@ -30,9 +30,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
-    # LLM Configuration (for MVP, static values)
-    llm_provider: str = "local"
-    llm_model: str = "microsoft/Phi-3.5-mini-instruct"
+    # LLM Configuration
+    llm_provider: str = "ollama"
+    llm_model: str = "qwen2.5:0.5b" #"phi3.5"
+    llm_base_url: str = "http://localhost:11434"
+
+    # Embedding Configuration
+    embedding_base_url: str = "http://localhost:11435"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dimensions: int = 384
 

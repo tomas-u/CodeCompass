@@ -1,6 +1,7 @@
 """Analysis API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import uuid4
 
@@ -14,7 +15,9 @@ from app.schemas.analysis import (
     AnalysisStep,
     StepStatus,
 )
-from app.mock_data import get_mock_project
+from app.database import get_db
+from app.models.project import Project
+from app.services.analysis_service import run_analysis
 
 router = APIRouter()
 
@@ -23,28 +26,23 @@ MOCK_ANALYSES = {}
 
 
 @router.post("/{project_id}/analyze", response_model=AnalysisStartResponse, status_code=202)
-async def start_analysis(project_id: str, options: AnalysisCreate = None):
+async def start_analysis(
+    project_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    options: AnalysisCreate = None
+):
     """Start code analysis."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Create analysis
+    # Create analysis ID
     analysis_id = str(uuid4())
-    analysis = {
-        "id": analysis_id,
-        "project_id": project_id,
-        "status": AnalysisStatus.queued,
-        "progress": None,
-        "stats": None,
-        "error": None,
-        "started_at": None,
-        "completed_at": None,
-        "created_at": datetime.utcnow(),
-    }
 
-    MOCK_ANALYSES[analysis_id] = analysis
+    # Start analysis in background
+    background_tasks.add_task(run_analysis, project_id)
 
     return AnalysisStartResponse(
         analysis_id=analysis_id,
@@ -55,9 +53,9 @@ async def start_analysis(project_id: str, options: AnalysisCreate = None):
 
 
 @router.get("/{project_id}/analysis", response_model=AnalysisResponse)
-async def get_analysis_status(project_id: str):
+async def get_analysis_status(project_id: str, db: Session = Depends(get_db)):
     """Get latest analysis status."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -117,9 +115,9 @@ async def get_analysis_status(project_id: str):
 
 
 @router.delete("/{project_id}/analysis", response_model=AnalysisCancelResponse)
-async def cancel_analysis(project_id: str):
+async def cancel_analysis(project_id: str, db: Session = Depends(get_db)):
     """Cancel ongoing analysis."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

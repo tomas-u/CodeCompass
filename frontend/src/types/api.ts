@@ -478,6 +478,9 @@ export interface HealthResponse {
   version: string;
   uptime_seconds: number;
   llm_provider: string;
+  llm_model_configured: string;
+  llm_model_loaded: string | null;
+  llm_models_available: string[];
   llm_status: string;
 }
 

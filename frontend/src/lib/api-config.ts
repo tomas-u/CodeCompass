@@ -6,7 +6,7 @@
 
 export const API_CONFIG = {
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-  timeout: 30000, // 30 seconds
+  timeout: 120000, // 120 seconds (LLM responses can be slow)
   headers: {
     'Content-Type': 'application/json',
   },
