@@ -24,7 +24,7 @@ mermaid.initialize({
     fontFamily: 'ui-sans-serif, system-ui, sans-serif',
   },
   flowchart: {
-    useMaxWidth: true,
+    useMaxWidth: false,  // Render at natural size for consistent sizing between LR/TD
     htmlLabels: true,
     curve: 'basis',
     nodeSpacing: 30,
