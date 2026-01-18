@@ -138,8 +138,8 @@ class DiagramGenerator:
                 language, LANGUAGE_STYLES["default"]
             )
 
-            # Add node definition
-            lines.append(f"    {node_id}[{label}]")
+            # Add node definition with quoted label to handle special chars
+            lines.append(f'    {node_id}["{label}"]')
 
             # Store metadata
             metadata["nodes"][node_id] = {
@@ -236,9 +236,8 @@ class DiagramGenerator:
             languages = [graph.nodes[n].get("language", "default") for n in nodes]
             primary_language = max(set(languages), key=languages.count)
 
-            # Sanitize directory label for Mermaid (brackets are special)
-            dir_label = directory.replace('[', '(').replace(']', ')')
-            lines.append(f"    subgraph {group_id}[{dir_label}]")
+            # Use quoted label for subgraph to handle special chars like []
+            lines.append(f'    subgraph {group_id}["{directory}"]')
 
             for node in nodes:
                 node_data = graph.nodes[node]
@@ -248,7 +247,8 @@ class DiagramGenerator:
                 label = self._get_display_label(node)
                 is_circular = node in circular_nodes
 
-                lines.append(f"        {node_id}[{label}]")
+                # Use quoted label to handle special chars
+                lines.append(f'        {node_id}["{label}"]')
 
                 metadata["nodes"][node_id] = {
                     "file_path": node,
@@ -367,9 +367,7 @@ class DiagramGenerator:
         """Get a short display label for a file path."""
         # Use just the filename
         name = Path(path).name
-        # Escape special characters for Mermaid
-        # Square brackets define node shapes, so replace them
-        name = name.replace('[', '(').replace(']', ')')
+        # Escape double quotes since we use quoted strings in Mermaid
         name = name.replace('"', "'")
         return name
 
@@ -408,7 +406,8 @@ class DiagramGenerator:
 
         root = Path(repo_path)
         root_id = "root"
-        lines.append(f"    {root_id}[{root.name}]")
+        root_name = root.name.replace('"', "'")
+        lines.append(f'    {root_id}["{root_name}"]')
 
         self._add_directory_nodes(
             lines, metadata, root, root_id, current_depth=0, max_depth=max_depth
@@ -450,7 +449,8 @@ class DiagramGenerator:
         # Add directories
         for d in dirs[:10]:  # Limit to 10 dirs per level
             dir_id = self._sanitize_node_id(str(d.relative_to(directory.parent)))
-            lines.append(f"    {parent_id} --> {dir_id}[{d.name}/]")
+            # Use quoted label to handle special chars like []
+            lines.append(f'    {parent_id} --> {dir_id}["{d.name}/"]')
             metadata["nodes"][dir_id] = {"path": str(d), "type": "directory"}
 
             self._add_directory_nodes(
@@ -460,14 +460,16 @@ class DiagramGenerator:
         # Add files (limited)
         for f in files[:5]:  # Limit to 5 files per directory
             file_id = self._sanitize_node_id(str(f.relative_to(directory.parent)))
-            lines.append(f"    {parent_id} --> {file_id}({f.name})")
+            # Use quoted label with () shape for files
+            file_name = f.name.replace('"', "'")
+            lines.append(f'    {parent_id} --> {file_id}("{file_name}")')
             metadata["nodes"][file_id] = {"path": str(f), "type": "file"}
 
         # Add ellipsis if there are more
         if len(dirs) > 10 or len(files) > 5:
             more_id = f"{parent_id}_more"
             remaining = max(0, len(dirs) - 10) + max(0, len(files) - 5)
-            lines.append(f"    {parent_id} --> {more_id}[... +{remaining} more]")
+            lines.append(f'    {parent_id} --> {more_id}["... +{remaining} more"]')
 
 
 def create_diagram_generator() -> DiagramGenerator:
