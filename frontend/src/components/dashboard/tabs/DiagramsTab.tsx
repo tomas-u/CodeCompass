@@ -12,11 +12,12 @@ import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import type { Diagram, DiagramType } from '@/types/api';
 
-// Initialize mermaid
+// Initialize mermaid with increased maxTextSize for large diagrams
 mermaid.initialize({
   startOnLoad: false,
   theme: 'neutral',
   securityLevel: 'loose',
+  maxTextSize: 100000, // Increased from default 50000 to handle larger diagrams
   flowchart: {
     useMaxWidth: true,
     htmlLabels: true,
@@ -52,7 +53,12 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
         setSvg(sanitizedSvg);
         setError(null);
       } catch (err) {
-        setError('Failed to render diagram');
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        if (errorMessage.includes('Maximum text size') || errorMessage.includes('maxTextSize')) {
+          setError(`Diagram too large to render (${chart.length.toLocaleString()} characters). Try the "Directory" diagram which is typically smaller.`);
+        } else {
+          setError(`Failed to render diagram: ${errorMessage}`);
+        }
         console.error('Mermaid error:', err);
       }
     };
@@ -129,6 +135,50 @@ interface DiagramData {
   diagram: Diagram | null;
   loading: boolean;
   error: string | null;
+}
+
+/**
+ * Extract only displayable statistics from diagram metadata.
+ * Filters out complex objects (nodes, edges, groups, colors) and shows
+ * clean summary numbers instead.
+ */
+function getDisplayableStats(metadata: Record<string, unknown>): Record<string, string | number> {
+  const displayable: Record<string, string | number> = {};
+
+  // Extract from stats sub-object if present
+  const stats = metadata.stats as Record<string, unknown> | undefined;
+  if (stats) {
+    if (typeof stats.total_nodes === 'number') displayable['Total Nodes'] = stats.total_nodes;
+    if (typeof stats.total_edges === 'number') displayable['Total Edges'] = stats.total_edges;
+    if (typeof stats.max_depth === 'number') displayable['Max Depth'] = stats.max_depth;
+  }
+
+  // Count items in complex objects instead of showing raw data
+  if (metadata.nodes && typeof metadata.nodes === 'object' && !Array.isArray(metadata.nodes)) {
+    const nodeCount = Object.keys(metadata.nodes as object).length;
+    if (!displayable['Total Nodes']) displayable['Node Count'] = nodeCount;
+  }
+  if (Array.isArray(metadata.edges)) {
+    const edgeCount = metadata.edges.length;
+    if (!displayable['Total Edges']) displayable['Edge Count'] = edgeCount;
+  }
+  if (metadata.groups && typeof metadata.groups === 'object') {
+    displayable['Group Count'] = Object.keys(metadata.groups as object).length;
+  }
+  if (metadata.colors && typeof metadata.colors === 'object') {
+    displayable['Languages'] = Object.keys(metadata.colors as object).length;
+  }
+
+  // Include simple scalar values directly (excluding known complex keys)
+  const excludeKeys = new Set(['nodes', 'edges', 'groups', 'colors', 'stats']);
+  for (const [key, value] of Object.entries(metadata)) {
+    if (excludeKeys.has(key)) continue;
+    if (typeof value === 'string' || typeof value === 'number') {
+      displayable[key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())] = value;
+    }
+  }
+
+  return displayable;
 }
 
 export function DiagramsTab() {
@@ -211,7 +261,9 @@ export function DiagramsTab() {
 
   // Fetch diagram when tab changes or project changes
   useEffect(() => {
-    if (currentProjectId && isProjectReady && !diagrams[activeDiagram].diagram && !diagrams[activeDiagram].loading) {
+    const currentDiagram = diagrams[activeDiagram];
+    // Don't fetch if we already have the diagram, are currently loading, or had an error
+    if (currentProjectId && isProjectReady && !currentDiagram.diagram && !currentDiagram.loading && !currentDiagram.error) {
       fetchDiagram(activeDiagram);
     }
   }, [activeDiagram, currentProjectId, isProjectReady, fetchDiagram, diagrams]);
@@ -350,19 +402,19 @@ export function DiagramsTab() {
         ))}
       </Tabs>
 
-      {/* Diagram Metadata */}
+      {/* Diagram Statistics */}
       {currentDiagramData.diagram?.metadata && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Diagram Statistics</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              {Object.entries(currentDiagramData.diagram.metadata).map(([key, value]) => (
-                <div key={key} className="flex flex-col">
-                  <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="font-medium">
-                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 text-sm">
+              {Object.entries(getDisplayableStats(currentDiagramData.diagram.metadata as Record<string, unknown>)).map(([key, value]) => (
+                <div key={key} className="flex flex-col p-3 bg-muted/50 rounded-lg">
+                  <span className="text-muted-foreground text-xs">{key}</span>
+                  <span className="font-semibold text-lg">
+                    {typeof value === 'number' ? value.toLocaleString() : value}
                   </span>
                 </div>
               ))}
