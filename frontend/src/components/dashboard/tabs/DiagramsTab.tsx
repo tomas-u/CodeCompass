@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2, ArrowRight, ArrowDown } from 'lucide-react';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -175,26 +175,34 @@ export function DiagramsTab() {
   const [directoryDiagram, setDirectoryDiagram] = useState<Diagram | null>(null);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState<string | null>(null);
+  const [diagramDirection, setDiagramDirection] = useState<'LR' | 'TD'>('LR');
 
   const currentProject = projects.find(p => p.id === currentProjectId);
   const isProjectReady = currentProject?.status === 'ready';
 
   // Fetch directory diagram
-  const fetchDirectoryDiagram = useCallback(async () => {
+  const fetchDirectoryDiagram = useCallback(async (direction: 'LR' | 'TD' = diagramDirection) => {
     if (!currentProjectId || !isProjectReady) return;
 
     setDirectoryLoading(true);
     setDirectoryError(null);
 
     try {
-      const diagram = await api.getDiagram(currentProjectId, 'directory');
+      const diagram = await api.getDiagram(currentProjectId, 'directory', { direction });
       setDirectoryDiagram(diagram);
     } catch (err: any) {
       setDirectoryError(err?.message || 'Failed to load directory diagram');
     } finally {
       setDirectoryLoading(false);
     }
-  }, [currentProjectId, isProjectReady]);
+  }, [currentProjectId, isProjectReady, diagramDirection]);
+
+  // Toggle diagram direction
+  const toggleDirection = useCallback(() => {
+    const newDirection = diagramDirection === 'LR' ? 'TD' : 'LR';
+    setDiagramDirection(newDirection);
+    fetchDirectoryDiagram(newDirection);
+  }, [diagramDirection, fetchDirectoryDiagram]);
 
   // Load directory diagram when tab is selected
   useEffect(() => {
@@ -260,18 +268,33 @@ export function DiagramsTab() {
                     File system organization and folder hierarchy
                   </CardDescription>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchDirectoryDiagram}
-                  disabled={directoryLoading}
-                >
-                  {directoryLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleDirection}
+                    disabled={directoryLoading}
+                    title={diagramDirection === 'LR' ? 'Switch to top-down layout' : 'Switch to left-right layout'}
+                  >
+                    {diagramDirection === 'LR' ? (
+                      <ArrowRight className="h-4 w-4" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchDirectoryDiagram()}
+                    disabled={directoryLoading}
+                  >
+                    {directoryLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
 
               <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
@@ -292,7 +315,7 @@ export function DiagramsTab() {
                   <MermaidDiagram chart={directoryDiagram.mermaid_code} id="directory" />
                 ) : (
                   <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
-                    <Button onClick={fetchDirectoryDiagram}>
+                    <Button onClick={() => fetchDirectoryDiagram()}>
                       Generate Diagram
                     </Button>
                   </div>

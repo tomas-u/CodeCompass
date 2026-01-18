@@ -58,7 +58,8 @@ class DiagramGenerator:
         self,
         dependency_graph: DependencyGraph,
         title: str = "Module Dependencies",
-        group_by_directory: Optional[bool] = None
+        group_by_directory: Optional[bool] = None,
+        direction: str = "LR"
     ) -> Dict[str, Any]:
         """
         Generate a Mermaid dependency diagram from a DependencyGraph.
@@ -68,6 +69,7 @@ class DiagramGenerator:
             title: Title for the diagram
             group_by_directory: Whether to group nodes by directory.
                                If None, auto-decides based on node count.
+            direction: Graph direction - "LR" (left-right) or "TD" (top-down)
 
         Returns:
             Dictionary containing:
@@ -91,11 +93,11 @@ class DiagramGenerator:
 
         if group_by_directory and num_nodes > self.GROUPING_THRESHOLD:
             return self._generate_grouped_diagram(
-                dependency_graph, title, circular_nodes, circular_edges
+                dependency_graph, title, circular_nodes, circular_edges, direction
             )
         else:
             return self._generate_flat_diagram(
-                dependency_graph, title, circular_nodes, circular_edges
+                dependency_graph, title, circular_nodes, circular_edges, direction
             )
 
     def generate_dependency_diagram_for_path(
@@ -103,7 +105,8 @@ class DiagramGenerator:
         dependency_graph: DependencyGraph,
         base_path: str = "",
         depth: int = 1,
-        title: str = "Module Dependencies"
+        title: str = "Module Dependencies",
+        direction: str = "LR"
     ) -> Dict[str, Any]:
         """
         Generate a dependency diagram filtered to a specific directory path.
@@ -118,6 +121,7 @@ class DiagramGenerator:
             base_path: Directory path to filter to (empty string = root level)
             depth: How many levels deep to show (1 = immediate children only)
             title: Title for the diagram
+            direction: Graph direction - "LR" (left-right) or "TD" (top-down)
 
         Returns:
             Dictionary containing:
@@ -178,12 +182,13 @@ class DiagramGenerator:
                     # Root-level files
                     filtered_nodes.add(node)
 
-        # Generate Mermaid code (LR = left-to-right for better readability)
-        lines = ["graph LR"]
+        # Generate Mermaid code
+        lines = [f"graph {direction}"]
         metadata = {
             "nodes": {},
             "directory_groups": {},
             "edges": [],
+            "direction": direction,
             "available_paths": sorted(list(all_directories)),
             "current_path": base_path,
             "depth": depth,
@@ -319,14 +324,16 @@ class DiagramGenerator:
         dependency_graph: DependencyGraph,
         title: str,
         circular_nodes: Set[str],
-        circular_edges: Set[Tuple[str, str]]
+        circular_edges: Set[Tuple[str, str]],
+        direction: str = "LR"
     ) -> Dict[str, Any]:
         """Generate a flat (non-grouped) dependency diagram."""
         graph = dependency_graph.graph
-        lines = ["graph LR"]
+        lines = [f"graph {direction}"]
         metadata = {
             "nodes": {},
             "edges": [],
+            "direction": direction,
             "stats": {
                 "total_nodes": graph.number_of_nodes(),
                 "total_edges": graph.number_of_edges(),
@@ -410,15 +417,17 @@ class DiagramGenerator:
         dependency_graph: DependencyGraph,
         title: str,
         circular_nodes: Set[str],
-        circular_edges: Set[Tuple[str, str]]
+        circular_edges: Set[Tuple[str, str]],
+        direction: str = "LR"
     ) -> Dict[str, Any]:
         """Generate a grouped diagram for large codebases."""
         graph = dependency_graph.graph
-        lines = ["graph LR"]
+        lines = [f"graph {direction}"]
         metadata = {
             "nodes": {},
             "groups": {},
             "edges": [],
+            "direction": direction,
             "stats": {
                 "total_nodes": graph.number_of_nodes(),
                 "total_edges": graph.number_of_edges(),
@@ -605,7 +614,8 @@ class DiagramGenerator:
     def generate_directory_diagram(
         self,
         repo_path: str,
-        max_depth: int = 3
+        max_depth: int = 3,
+        direction: str = "LR"
     ) -> Dict[str, Any]:
         """
         Generate a directory structure diagram.
@@ -613,12 +623,13 @@ class DiagramGenerator:
         Args:
             repo_path: Path to the repository
             max_depth: Maximum directory depth to show
+            direction: Graph direction - "LR" (left-right) or "TD" (top-down)
 
         Returns:
             Dictionary with diagram data
         """
-        lines = ["graph TD"]
-        metadata = {"nodes": {}, "stats": {"type": "directory"}}
+        lines = [f"graph {direction}"]
+        metadata = {"nodes": {}, "stats": {"type": "directory", "direction": direction}}
 
         root = Path(repo_path)
         root_id = "root"

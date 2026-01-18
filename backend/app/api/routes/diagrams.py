@@ -37,7 +37,8 @@ def generate_dependency_diagram(
     project: Project,
     db: Session,
     path: str = "",
-    depth: int = 1
+    depth: int = 1,
+    direction: str = "LR"
 ) -> Diagram:
     """Generate dependency diagram for a project.
 
@@ -46,6 +47,7 @@ def generate_dependency_diagram(
         db: Database session
         path: Directory path to filter to (empty = root level for drill-down)
         depth: How many directory levels to show
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
     """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
@@ -78,13 +80,15 @@ def generate_dependency_diagram(
             dep_graph,
             base_path=path,
             depth=depth,
-            title=f"Dependencies: {project.name}"
+            title=f"Dependencies: {project.name}",
+            direction=direction
         )
     else:
         # Small graph - show everything
         diagram_data = generator.generate_dependency_diagram(
             dep_graph,
-            title=f"Dependencies: {project.name}"
+            title=f"Dependencies: {project.name}",
+            direction=direction
         )
 
     # For path-based queries, don't cache (dynamic content)
@@ -128,8 +132,14 @@ def generate_dependency_diagram(
         return diagram
 
 
-def generate_directory_diagram(project: Project, db: Session) -> Diagram:
-    """Generate directory structure diagram for a project."""
+def generate_directory_diagram(project: Project, db: Session, direction: str = "LR") -> Diagram:
+    """Generate directory structure diagram for a project.
+
+    Args:
+        project: The project to generate diagram for
+        db: Database session
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
+    """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
             status_code=400,
@@ -145,7 +155,8 @@ def generate_directory_diagram(project: Project, db: Session) -> Diagram:
     generator = DiagramGenerator()
     diagram_data = generator.generate_directory_diagram(
         repo_path=project.local_path,
-        max_depth=3
+        max_depth=3,
+        direction=direction
     )
 
     if existing:
@@ -219,6 +230,7 @@ async def get_diagram(
     regenerate: bool = False,
     path: str = "",
     depth: int = 1,
+    direction: str = "LR",
     db: Session = Depends(get_db)
 ):
     """
@@ -230,6 +242,7 @@ async def get_diagram(
         regenerate: If True, regenerate even if cached
         path: For dependency diagrams, filter to this directory path (enables drill-down)
         depth: For dependency diagrams, how many directory levels to show
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
     """
     project = get_project_or_404(project_id, db)
 
@@ -255,9 +268,9 @@ async def get_diagram(
 
     # Generate diagram based on type
     if diagram_type == DiagramType.dependency:
-        diagram = generate_dependency_diagram(project, db, path=path, depth=depth)
+        diagram = generate_dependency_diagram(project, db, path=path, depth=depth, direction=direction)
     elif diagram_type == DiagramType.directory:
-        diagram = generate_directory_diagram(project, db)
+        diagram = generate_directory_diagram(project, db, direction=direction)
     elif diagram_type == DiagramType.architecture:
         # Architecture diagram not yet implemented
         raise HTTPException(

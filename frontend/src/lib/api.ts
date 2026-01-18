@@ -356,6 +356,7 @@ class CodeCompassAPI {
       path?: string;
       depth?: number;
       regenerate?: boolean;
+      direction?: 'LR' | 'TD';
     }
   ): Promise<Diagram> {
     const queryParams = new URLSearchParams();
@@ -367,6 +368,9 @@ class CodeCompassAPI {
     }
     if (options?.regenerate) {
       queryParams.append('regenerate', 'true');
+    }
+    if (options?.direction) {
+      queryParams.append('direction', options.direction);
     }
 
     const query = queryParams.toString();
