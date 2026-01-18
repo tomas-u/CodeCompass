@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Download, Copy, Check, ZoomIn, ZoomOut } from 'lucide-react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { mockDiagrams } from '@/lib/mock-data';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAppStore } from '@/lib/store';
+import { api } from '@/lib/api';
+import type { Diagram, DiagramType } from '@/types/api';
 
 // Initialize mermaid
 mermaid.initialize({
@@ -38,7 +41,9 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
       if (!chart) return;
 
       try {
-        const { svg } = await mermaid.render(`mermaid-${id}`, chart);
+        // Generate unique ID for this render to avoid conflicts
+        const uniqueId = `mermaid-${id}-${Date.now()}`;
+        const { svg } = await mermaid.render(uniqueId, chart);
         // Sanitize the SVG output to prevent XSS
         const sanitizedSvg = DOMPurify.sanitize(svg, {
           USE_PROFILES: { svg: true, svgFilters: true },
@@ -96,7 +101,7 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
         <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleCopy}>
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleDownload}>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleDownload} disabled={!svg}>
           <Download className="h-4 w-4" />
         </Button>
       </div>
@@ -117,75 +122,254 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
   );
 }
 
-export function DiagramsTab() {
-  const [activeDiagram, setActiveDiagram] = useState<'architecture' | 'dependency' | 'directory'>('architecture');
+interface DiagramData {
+  type: DiagramType;
+  title: string;
+  description: string;
+  diagram: Diagram | null;
+  loading: boolean;
+  error: string | null;
+}
 
-  const diagrams = [
-    {
-      id: 'architecture',
-      title: 'Architecture Diagram',
-      description: 'High-level system architecture showing main components and their relationships',
-      chart: mockDiagrams.architecture,
-    },
-    {
-      id: 'dependency',
+export function DiagramsTab() {
+  const { currentProjectId, projects } = useAppStore();
+  const [activeDiagram, setActiveDiagram] = useState<DiagramType>('dependency');
+  const [diagrams, setDiagrams] = useState<Record<DiagramType, DiagramData>>({
+    dependency: {
+      type: 'dependency',
       title: 'Dependency Graph',
       description: 'Internal module dependencies and their connections',
-      chart: mockDiagrams.dependency,
+      diagram: null,
+      loading: false,
+      error: null,
     },
-    {
-      id: 'directory',
+    directory: {
+      type: 'directory',
       title: 'Directory Structure',
       description: 'File system organization and folder hierarchy',
-      chart: mockDiagrams.directory,
+      diagram: null,
+      loading: false,
+      error: null,
     },
-  ];
+    architecture: {
+      type: 'architecture',
+      title: 'Architecture Diagram',
+      description: 'High-level system architecture showing main components',
+      diagram: null,
+      loading: false,
+      error: null,
+    },
+    class: {
+      type: 'class',
+      title: 'Class Diagram',
+      description: 'Class hierarchies and relationships',
+      diagram: null,
+      loading: false,
+      error: null,
+    },
+    sequence: {
+      type: 'sequence',
+      title: 'Sequence Diagram',
+      description: 'Request flow and component interactions',
+      diagram: null,
+      loading: false,
+      error: null,
+    },
+  });
+  const [regenerating, setRegenerating] = useState(false);
+
+  // Get current project
+  const currentProject = projects.find(p => p.id === currentProjectId);
+  const isProjectReady = currentProject?.status === 'ready';
+
+  // Fetch a specific diagram
+  const fetchDiagram = useCallback(async (type: DiagramType) => {
+    if (!currentProjectId || !isProjectReady) return;
+
+    setDiagrams(prev => ({
+      ...prev,
+      [type]: { ...prev[type], loading: true, error: null },
+    }));
+
+    try {
+      const diagram = await api.getDiagram(currentProjectId, type);
+      setDiagrams(prev => ({
+        ...prev,
+        [type]: { ...prev[type], diagram, loading: false },
+      }));
+    } catch (err: any) {
+      const errorMessage = err?.status === 501
+        ? 'This diagram type is not yet implemented'
+        : err?.message || 'Failed to load diagram';
+
+      setDiagrams(prev => ({
+        ...prev,
+        [type]: { ...prev[type], loading: false, error: errorMessage },
+      }));
+    }
+  }, [currentProjectId, isProjectReady]);
+
+  // Fetch diagram when tab changes or project changes
+  useEffect(() => {
+    if (currentProjectId && isProjectReady && !diagrams[activeDiagram].diagram && !diagrams[activeDiagram].loading) {
+      fetchDiagram(activeDiagram);
+    }
+  }, [activeDiagram, currentProjectId, isProjectReady, fetchDiagram, diagrams]);
+
+  // Regenerate all diagrams
+  const handleRegenerateAll = async () => {
+    if (!currentProjectId) return;
+
+    setRegenerating(true);
+    try {
+      // Call the regenerate endpoint
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/projects/${currentProjectId}/diagrams/generate`, {
+        method: 'POST',
+      });
+
+      // Refetch current diagram
+      await fetchDiagram(activeDiagram);
+    } catch (err) {
+      console.error('Failed to regenerate diagrams:', err);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  // Available diagram types (only show implemented ones prominently)
+  const availableDiagrams: DiagramType[] = ['dependency', 'directory'];
+  const comingSoonDiagrams: DiagramType[] = ['architecture', 'class', 'sequence'];
+
+  if (!currentProject) {
+    return (
+      <div className="p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No Project Selected</AlertTitle>
+          <AlertDescription>
+            Please select a project to view its diagrams.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (!isProjectReady) {
+    return (
+      <div className="p-6">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Analysis Required</AlertTitle>
+          <AlertDescription>
+            Please run analysis on this project first to generate diagrams.
+            Current status: {currentProject.status}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const currentDiagramData = diagrams[activeDiagram];
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Architecture Diagrams</h1>
-        <p className="text-muted-foreground mt-1">
-          Visual representations of the codebase structure and dependencies
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Architecture Diagrams</h1>
+          <p className="text-muted-foreground mt-1">
+            Visual representations of the codebase structure and dependencies
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleRegenerateAll}
+          disabled={regenerating}
+        >
+          {regenerating ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-2" />
+          )}
+          Regenerate All
+        </Button>
       </div>
 
-      <Tabs value={activeDiagram} onValueChange={(v) => setActiveDiagram(v as any)}>
+      <Tabs value={activeDiagram} onValueChange={(v) => setActiveDiagram(v as DiagramType)}>
         <TabsList>
-          <TabsTrigger value="architecture">Architecture</TabsTrigger>
-          <TabsTrigger value="dependency">Dependencies</TabsTrigger>
-          <TabsTrigger value="directory">Directory</TabsTrigger>
+          {availableDiagrams.map((type) => (
+            <TabsTrigger key={type} value={type}>
+              {diagrams[type].title.replace(' Diagram', '').replace(' Graph', '')}
+            </TabsTrigger>
+          ))}
+          {comingSoonDiagrams.map((type) => (
+            <TabsTrigger key={type} value={type} disabled className="opacity-50">
+              {diagrams[type].title.replace(' Diagram', '')}
+              <span className="ml-1 text-xs">(Soon)</span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {diagrams.map((diagram) => (
-          <TabsContent key={diagram.id} value={diagram.id}>
+        {Object.entries(diagrams).map(([type, data]) => (
+          <TabsContent key={type} value={type}>
             <Card>
-              <CardHeader>
-                <CardTitle>{diagram.title}</CardTitle>
-                <CardDescription>{diagram.description}</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>{data.title}</CardTitle>
+                  <CardDescription>{data.description}</CardDescription>
+                </div>
+                {data.diagram && (
+                  <div className="text-xs text-muted-foreground">
+                    Generated: {new Date(data.diagram.generated_at).toLocaleString()}
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
-                <MermaidDiagram chart={diagram.chart} id={diagram.id} />
+                {data.loading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Generating diagram...</span>
+                  </div>
+                ) : data.error ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{data.error}</AlertDescription>
+                  </Alert>
+                ) : data.diagram ? (
+                  <MermaidDiagram chart={data.diagram.mermaid_code} id={type} />
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-muted-foreground">
+                    <Button onClick={() => fetchDiagram(type as DiagramType)}>
+                      Generate Diagram
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         ))}
       </Tabs>
 
-      {/* Mermaid Source Code */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Mermaid Source</CardTitle>
-          <CardDescription>
-            Edit or copy this Mermaid code to customize the diagram
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm font-mono">
-            {diagrams.find(d => d.id === activeDiagram)?.chart}
-          </pre>
-        </CardContent>
-      </Card>
+      {/* Diagram Metadata */}
+      {currentDiagramData.diagram?.metadata && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Diagram Statistics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              {Object.entries(currentDiagramData.diagram.metadata).map(([key, value]) => (
+                <div key={key} className="flex flex-col">
+                  <span className="text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</span>
+                  <span className="font-medium">
+                    {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
