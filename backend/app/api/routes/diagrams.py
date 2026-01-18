@@ -246,10 +246,11 @@ async def get_diagram(
     """
     project = get_project_or_404(project_id, db)
 
-    # For path-based queries, always generate fresh (don't use cache)
-    use_cache = not regenerate and not path
+    # Always regenerate when direction is specified (user preference) or path-based queries
+    # Cache is only used for default requests without customization
+    use_cache = not regenerate and not path and direction == "LR"
 
-    # Check for cached diagram (unless regenerate requested or path specified)
+    # Check for cached diagram (unless regenerate requested, path specified, or direction changed)
     if use_cache:
         cached = db.query(Diagram).filter(
             Diagram.project_id == project_id,
