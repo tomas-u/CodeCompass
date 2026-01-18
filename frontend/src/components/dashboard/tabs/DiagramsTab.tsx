@@ -86,7 +86,7 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
+      <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] text-muted-foreground bg-muted/30 rounded-lg p-4">
         {error}
       </div>
     );
@@ -112,10 +112,10 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
         </Button>
       </div>
 
-      {/* Diagram */}
+      {/* Diagram - uses available height */}
       <div
         ref={containerRef}
-        className="overflow-auto p-4 bg-muted/30 rounded-lg min-h-[400px] flex items-center justify-center"
+        className="overflow-auto p-4 bg-muted/30 rounded-lg min-h-[500px] h-[calc(100vh-400px)] flex items-center justify-center"
         style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
       >
         {svg ? (
@@ -375,22 +375,24 @@ export function DiagramsTab() {
                   </div>
                 )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4">
                 {data.loading ? (
-                  <div className="flex items-center justify-center h-64">
+                  <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] bg-muted/30 rounded-lg">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     <span className="ml-2 text-muted-foreground">Generating diagram...</span>
                   </div>
                 ) : data.error ? (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{data.error}</AlertDescription>
-                  </Alert>
+                  <div className="min-h-[500px] h-[calc(100vh-400px)] flex items-center justify-center">
+                    <Alert variant="destructive" className="max-w-lg">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{data.error}</AlertDescription>
+                    </Alert>
+                  </div>
                 ) : data.diagram ? (
                   <MermaidDiagram chart={data.diagram.mermaid_code} id={type} />
                 ) : (
-                  <div className="flex items-center justify-center h-64 text-muted-foreground">
+                  <div className="flex items-center justify-center min-h-[500px] h-[calc(100vh-400px)] bg-muted/30 rounded-lg text-muted-foreground">
                     <Button onClick={() => fetchDiagram(type as DiagramType)}>
                       Generate Diagram
                     </Button>
