@@ -41,6 +41,9 @@ import type {
   Diagram,
   DiagramListItem,
   DiagramType,
+  DependencySummary,
+  DependencyFileList,
+  FileEgoGraph,
   // Files
   FileTree,
   FileContent,
@@ -377,6 +380,27 @@ class CodeCompassAPI {
    */
   async getDiagramSVG(projectId: string, type: DiagramType): Promise<string> {
     return request<string>(`/api/projects/${projectId}/diagrams/${type}/svg`);
+  }
+
+  /**
+   * Get dependency summary statistics
+   */
+  async getDependencySummary(projectId: string): Promise<DependencySummary> {
+    return request<DependencySummary>(`/api/projects/${projectId}/dependencies/summary`);
+  }
+
+  /**
+   * Get list of all files with dependency counts
+   */
+  async getDependencyFiles(projectId: string): Promise<DependencyFileList> {
+    return request<DependencyFileList>(`/api/projects/${projectId}/dependencies/files`);
+  }
+
+  /**
+   * Get ego graph for a specific file (its imports and dependents)
+   */
+  async getFileDependencies(projectId: string, filePath: string): Promise<FileEgoGraph> {
+    return request<FileEgoGraph>(`/api/projects/${projectId}/dependencies/file/${encodeURIComponent(filePath)}`);
   }
 
   // ============================================================================

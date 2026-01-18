@@ -1,31 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2, Home, ChevronRight, FolderTree } from 'lucide-react';
+import { Download, Copy, Check, ZoomIn, ZoomOut, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
-import type { Diagram, DiagramType } from '@/types/api';
+import { DependencyOverview } from '@/components/dependencies';
+import type { Diagram } from '@/types/api';
 
-// Initialize mermaid with increased maxTextSize and better readability settings
+// Initialize mermaid with settings for directory diagrams
 mermaid.initialize({
   startOnLoad: false,
   theme: 'neutral',
   securityLevel: 'loose',
-  maxTextSize: 100000, // Increased from default 50000 to handle larger diagrams
+  maxTextSize: 100000,
   themeVariables: {
     fontSize: '16px',
     fontFamily: 'ui-sans-serif, system-ui, sans-serif',
@@ -43,15 +36,13 @@ mermaid.initialize({
 interface MermaidDiagramProps {
   chart: string;
   id: string;
-  metadata?: Record<string, any>;
-  onNodeClick?: (nodeId: string, nodeData: any) => void;
 }
 
-function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProps) {
+function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(10);
+  const [zoom, setZoom] = useState(1);
   const [copied, setCopied] = useState(false);
 
   // Pan/drag state
@@ -59,12 +50,9 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ x: 0, y: 0 });
 
-  // Handle mouse down - start dragging
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!containerRef.current) return;
-    // Only start drag on left mouse button
     if (e.button !== 0) return;
-
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
     setScrollStart({
@@ -74,36 +62,25 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
     e.preventDefault();
   }, []);
 
-  // Handle mouse move - drag to pan
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !containerRef.current) return;
-
     const deltaX = e.clientX - dragStart.x;
     const deltaY = e.clientY - dragStart.y;
-
     containerRef.current.scrollLeft = scrollStart.x - deltaX;
     containerRef.current.scrollTop = scrollStart.y - deltaY;
   }, [isDragging, dragStart, scrollStart]);
 
-  // Handle mouse up - stop dragging
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  // Handle mouse leave - stop dragging if mouse leaves container
-  const handleMouseLeave = useCallback(() => {
     setIsDragging(false);
   }, []);
 
   useEffect(() => {
     const renderDiagram = async () => {
       if (!chart) return;
-
       try {
-        // Generate unique ID for this render to avoid conflicts
         const uniqueId = `mermaid-${id}-${Date.now()}`;
         const { svg } = await mermaid.render(uniqueId, chart);
-        // Sanitize the SVG output to prevent XSS
+        // Sanitize the SVG output with DOMPurify to prevent XSS
         const sanitizedSvg = DOMPurify.sanitize(svg, {
           USE_PROFILES: { svg: true, svgFilters: true },
           ADD_TAGS: ['foreignObject'],
@@ -112,62 +89,11 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
         setError(null);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        if (errorMessage.includes('Maximum text size') || errorMessage.includes('maxTextSize')) {
-          setError(`Diagram too large to render (${chart.length.toLocaleString()} characters). Try the "Directory" diagram which is typically smaller.`);
-        } else {
-          setError(`Failed to render diagram: ${errorMessage}`);
-        }
-        console.error('Mermaid error:', err);
+        setError(`Failed to render diagram: ${errorMessage}`);
       }
     };
-
     renderDiagram();
   }, [chart, id]);
-
-  // Add click handlers to directory nodes after SVG is rendered
-  useEffect(() => {
-    if (!svg || !containerRef.current || !onNodeClick || !metadata?.nodes) return;
-
-    const container = containerRef.current;
-    const nodes = metadata.nodes as Record<string, any>;
-
-    // Find all clickable directory nodes and add click handlers
-    const handleNodeClick = (e: MouseEvent) => {
-      const target = e.target as Element;
-      // Find the closest node group (g element with class 'node')
-      const nodeGroup = target.closest('.node');
-      if (!nodeGroup) return;
-
-      // Get the node ID from the group's id attribute
-      const nodeId = nodeGroup.getAttribute('id');
-      if (!nodeId) return;
-
-      // Check if this node is a clickable directory
-      const nodeData = nodes[nodeId];
-      if (nodeData?.type === 'directory' && nodeData?.is_clickable) {
-        e.preventDefault();
-        e.stopPropagation();
-        onNodeClick(nodeId, nodeData);
-      }
-    };
-
-    container.addEventListener('click', handleNodeClick);
-
-    // Add visual indication for clickable nodes
-    Object.entries(nodes).forEach(([nodeId, nodeData]: [string, any]) => {
-      if (nodeData?.type === 'directory' && nodeData?.is_clickable) {
-        const nodeElement = container.querySelector(`#${CSS.escape(nodeId)}`);
-        if (nodeElement) {
-          nodeElement.classList.add('clickable-node');
-          (nodeElement as HTMLElement).style.cursor = 'pointer';
-        }
-      }
-    });
-
-    return () => {
-      container.removeEventListener('click', handleNodeClick);
-    };
-  }, [svg, metadata, onNodeClick]);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(chart);
@@ -195,15 +121,15 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
     );
   }
 
+  // SVG content is sanitized with DOMPurify above before being stored
   return (
     <div className="relative h-full flex flex-col">
-      {/* Controls */}
       <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(0.25, z - 0.50))}>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.max(0.25, z - 0.25))}>
           <ZoomOut className="h-4 w-4" />
         </Button>
-        <span className="text-xs text-muted-foreground w-16 text-center">{Math.round(zoom * 100)}%</span>
-        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.min(20, z + 0.50))}>
+        <span className="text-xs text-muted-foreground w-12 text-center">{Math.round(zoom * 100)}%</span>
+        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setZoom(z => Math.min(4, z + 0.25))}>
           <ZoomIn className="h-4 w-4" />
         </Button>
         <div className="w-px h-6 bg-border mx-1" />
@@ -215,16 +141,13 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
         </Button>
       </div>
 
-      {/* Diagram - fills available height, SVG is sanitized with DOMPurify before being stored */}
       <div
         ref={containerRef}
-        className={`overflow-auto p-4 bg-muted/30 rounded-lg flex-1 min-h-[200px] ${
-          isDragging ? 'cursor-grabbing' : 'cursor-grab'
-        }`}
+        className={`overflow-auto p-4 bg-muted/30 rounded-lg flex-1 min-h-[200px] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        onMouseLeave={handleMouseUp}
       >
         {svg ? (
           <div
@@ -233,226 +156,58 @@ function MermaidDiagram({ chart, id, metadata, onNodeClick }: MermaidDiagramProp
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         ) : (
-          <div className="h-full flex items-center justify-center animate-pulse text-muted-foreground">Loading diagram...</div>
+          <div className="h-full flex items-center justify-center animate-pulse text-muted-foreground">
+            Loading diagram...
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-interface DiagramData {
-  type: DiagramType;
-  title: string;
-  description: string;
-  diagram: Diagram | null;
-  loading: boolean;
-  error: string | null;
-}
-
-/**
- * Extract only displayable statistics from diagram metadata.
- * Filters out complex objects (nodes, edges, groups, colors) and shows
- * clean summary numbers instead.
- */
-function getDisplayableStats(metadata: Record<string, unknown>): Record<string, string | number> {
-  const displayable: Record<string, string | number> = {};
-
-  // Extract from stats sub-object if present
-  const stats = metadata.stats as Record<string, unknown> | undefined;
-  if (stats) {
-    if (typeof stats.total_nodes === 'number') displayable['Total Nodes'] = stats.total_nodes;
-    if (typeof stats.total_nodes_in_graph === 'number') displayable['Total Nodes'] = stats.total_nodes_in_graph;
-    if (typeof stats.total_edges === 'number') displayable['Total Edges'] = stats.total_edges;
-    if (typeof stats.max_depth === 'number') displayable['Max Depth'] = stats.max_depth;
-    if (typeof stats.visible_nodes === 'number') displayable['Visible Nodes'] = stats.visible_nodes;
-    if (typeof stats.directory_groups === 'number') displayable['Dir Groups'] = stats.directory_groups;
-  }
-
-  // Count items in complex objects instead of showing raw data
-  if (metadata.nodes && typeof metadata.nodes === 'object' && !Array.isArray(metadata.nodes)) {
-    const nodeCount = Object.keys(metadata.nodes as object).length;
-    if (!displayable['Total Nodes'] && !displayable['Visible Nodes']) displayable['Node Count'] = nodeCount;
-  }
-  if (Array.isArray(metadata.edges)) {
-    const edgeCount = metadata.edges.length;
-    if (!displayable['Total Edges']) displayable['Edge Count'] = edgeCount;
-  }
-  if (metadata.groups && typeof metadata.groups === 'object') {
-    displayable['Group Count'] = Object.keys(metadata.groups as object).length;
-  }
-  if (metadata.directory_groups && typeof metadata.directory_groups === 'object') {
-    displayable['Directories'] = Object.keys(metadata.directory_groups as object).length;
-  }
-  if (metadata.colors && typeof metadata.colors === 'object') {
-    displayable['Languages'] = Object.keys(metadata.colors as object).length;
-  }
-
-  // Include simple scalar values directly (excluding known complex keys)
-  const excludeKeys = new Set([
-    'nodes', 'edges', 'groups', 'colors', 'stats',
-    'available_paths', 'directory_groups', 'current_path', 'depth'
-  ]);
-  for (const [key, value] of Object.entries(metadata)) {
-    if (excludeKeys.has(key)) continue;
-    if (typeof value === 'string' || typeof value === 'number') {
-      displayable[key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())] = value;
-    }
-  }
-
-  return displayable;
-}
+type TabType = 'dependencies' | 'directory';
 
 export function DiagramsTab() {
   const { currentProjectId, projects } = useAppStore();
-  const [activeDiagram, setActiveDiagram] = useState<DiagramType>('dependency');
-  const [diagrams, setDiagrams] = useState<Record<DiagramType, DiagramData>>({
-    dependency: {
-      type: 'dependency',
-      title: 'Dependency Graph',
-      description: 'Internal module dependencies and their connections',
-      diagram: null,
-      loading: false,
-      error: null,
-    },
-    directory: {
-      type: 'directory',
-      title: 'Directory Structure',
-      description: 'File system organization and folder hierarchy',
-      diagram: null,
-      loading: false,
-      error: null,
-    },
-    architecture: {
-      type: 'architecture',
-      title: 'Architecture Diagram',
-      description: 'High-level system architecture showing main components',
-      diagram: null,
-      loading: false,
-      error: null,
-    },
-    class: {
-      type: 'class',
-      title: 'Class Diagram',
-      description: 'Class hierarchies and relationships',
-      diagram: null,
-      loading: false,
-      error: null,
-    },
-    sequence: {
-      type: 'sequence',
-      title: 'Sequence Diagram',
-      description: 'Request flow and component interactions',
-      diagram: null,
-      loading: false,
-      error: null,
-    },
-  });
-  const [regenerating, setRegenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('dependencies');
 
-  // Drill-down navigation state (for dependency diagrams)
-  const [currentPath, setCurrentPath] = useState<string>('');
-  const [availablePaths, setAvailablePaths] = useState<string[]>([]);
+  // Directory diagram state
+  const [directoryDiagram, setDirectoryDiagram] = useState<Diagram | null>(null);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
 
-  // Get current project
   const currentProject = projects.find(p => p.id === currentProjectId);
   const isProjectReady = currentProject?.status === 'ready';
 
-  // Fetch a specific diagram with optional path for drill-down
-  const fetchDiagram = useCallback(async (type: DiagramType, path: string = '') => {
+  // Fetch directory diagram
+  const fetchDirectoryDiagram = useCallback(async () => {
     if (!currentProjectId || !isProjectReady) return;
 
-    setDiagrams(prev => ({
-      ...prev,
-      [type]: { ...prev[type], loading: true, error: null },
-    }));
+    setDirectoryLoading(true);
+    setDirectoryError(null);
 
     try {
-      const diagram = await api.getDiagram(currentProjectId, type, {
-        path: type === 'dependency' ? path : undefined,
-        depth: 1,
-      });
-
-      // Extract available paths from metadata for navigation
-      if (type === 'dependency' && diagram.metadata?.available_paths) {
-        setAvailablePaths(diagram.metadata.available_paths as string[]);
-      }
-
-      setDiagrams(prev => ({
-        ...prev,
-        [type]: { ...prev[type], diagram, loading: false },
-      }));
+      const diagram = await api.getDiagram(currentProjectId, 'directory');
+      setDirectoryDiagram(diagram);
     } catch (err: any) {
-      const errorMessage = err?.status === 501
-        ? 'This diagram type is not yet implemented'
-        : err?.message || 'Failed to load diagram';
-
-      setDiagrams(prev => ({
-        ...prev,
-        [type]: { ...prev[type], loading: false, error: errorMessage },
-      }));
+      setDirectoryError(err?.message || 'Failed to load directory diagram');
+    } finally {
+      setDirectoryLoading(false);
     }
   }, [currentProjectId, isProjectReady]);
 
-  // Fetch diagram when tab changes or project changes
+  // Load directory diagram when tab is selected
   useEffect(() => {
-    const currentDiagram = diagrams[activeDiagram];
-    // Don't fetch if we already have the diagram, are currently loading, or had an error
-    if (currentProjectId && isProjectReady && !currentDiagram.diagram && !currentDiagram.loading && !currentDiagram.error) {
-      fetchDiagram(activeDiagram, currentPath);
+    if (activeTab === 'directory' && !directoryDiagram && !directoryLoading && !directoryError) {
+      fetchDirectoryDiagram();
     }
-  }, [activeDiagram, currentProjectId, isProjectReady, fetchDiagram, diagrams, currentPath]);
+  }, [activeTab, directoryDiagram, directoryLoading, directoryError, fetchDirectoryDiagram]);
 
-  // Refetch when path changes for dependency diagram
+  // Reset when project changes
   useEffect(() => {
-    if (activeDiagram === 'dependency' && currentProjectId && isProjectReady) {
-      fetchDiagram('dependency', currentPath);
-    }
-  }, [currentPath, activeDiagram, currentProjectId, isProjectReady, fetchDiagram]);
-
-  // Reset path when project changes
-  useEffect(() => {
-    setCurrentPath('');
-    setAvailablePaths([]);
+    setDirectoryDiagram(null);
+    setDirectoryError(null);
   }, [currentProjectId]);
-
-  // Handle node click for drill-down navigation
-  const handleNodeClick = useCallback((_nodeId: string, nodeData: any) => {
-    if (nodeData?.type === 'directory' && nodeData?.directory) {
-      setCurrentPath(nodeData.directory);
-    }
-  }, []);
-
-  // Navigate to a specific path
-  const navigateToPath = useCallback((path: string) => {
-    setCurrentPath(path);
-  }, []);
-
-  // Get breadcrumb segments
-  const breadcrumbSegments = currentPath ? currentPath.split('/').filter(Boolean) : [];
-
-  // Regenerate all diagrams
-  const handleRegenerateAll = async () => {
-    if (!currentProjectId) return;
-
-    setRegenerating(true);
-    try {
-      // Call the regenerate endpoint
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/projects/${currentProjectId}/diagrams/generate`, {
-        method: 'POST',
-      });
-
-      // Refetch current diagram
-      await fetchDiagram(activeDiagram);
-    } catch (err) {
-      console.error('Failed to regenerate diagrams:', err);
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  // Available diagram types (only show implemented ones prominently)
-  const availableDiagrams: DiagramType[] = ['dependency', 'directory'];
-  const comingSoonDiagrams: DiagramType[] = ['architecture', 'class', 'sequence'];
 
   if (!currentProject) {
     return (
@@ -483,191 +238,70 @@ export function DiagramsTab() {
     );
   }
 
-  const currentDiagramData = diagrams[activeDiagram];
-
-  // Check if we have displayable statistics
-  const hasStatistics = currentDiagramData.diagram?.metadata &&
-    Object.keys(getDisplayableStats(currentDiagramData.diagram.metadata as Record<string, unknown>)).length > 0;
-
   return (
     <div className="p-4 h-full flex flex-col overflow-hidden">
-      {/* Header - fixed height */}
-      <div className="flex items-center justify-between flex-shrink-0 mb-2">
-        <div>
-          <h1 className="text-xl font-bold">Architecture Diagrams</h1>
-          <p className="text-muted-foreground text-sm">
-            Visual representations of the codebase structure and dependencies
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={handleRegenerateAll}
-          disabled={regenerating}
-        >
-          {regenerating ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          Regenerate All
-        </Button>
-      </div>
-
-      {/* Diagram area - fills remaining space */}
       <div className="flex-1 min-h-0 flex flex-col">
-        <Tabs value={activeDiagram} onValueChange={(v) => setActiveDiagram(v as DiagramType)} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="flex-shrink-0">
-            {availableDiagrams.map((type) => (
-              <TabsTrigger key={type} value={type}>
-                {diagrams[type].title.replace(' Diagram', '').replace(' Graph', '')}
-              </TabsTrigger>
-            ))}
-            {comingSoonDiagrams.map((type) => (
-              <TabsTrigger key={type} value={type} disabled className="opacity-50">
-                {diagrams[type].title.replace(' Diagram', '')}
-                <span className="ml-1 text-xs">(Soon)</span>
-              </TabsTrigger>
-            ))}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="flex-shrink-0 w-fit">
+            <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+            <TabsTrigger value="directory">Directory Structure</TabsTrigger>
           </TabsList>
 
-          {Object.entries(diagrams).map(([type, data]) => (
-            <TabsContent key={type} value={type} className="flex-1 min-h-0 mt-1">
-              <Card className="h-full flex flex-col">
-                <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 py-2 px-4">
-                  <div>
-                    <CardTitle className="text-base">{data.title}</CardTitle>
-                    <CardDescription className="text-xs">{data.description}</CardDescription>
-                  </div>
-                  {data.diagram && (
-                    <div className="text-xs text-muted-foreground">
-                      Generated: {new Date(data.diagram.generated_at).toLocaleString()}
-                    </div>
+          <TabsContent value="dependencies" className="flex-1 min-h-0 mt-2 overflow-auto">
+            <DependencyOverview projectId={currentProjectId!} />
+          </TabsContent>
+
+          <TabsContent value="directory" className="flex-1 min-h-0 mt-2">
+            <Card className="h-full flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 py-2 px-4">
+                <div>
+                  <CardTitle className="text-base">Directory Structure</CardTitle>
+                  <CardDescription className="text-xs">
+                    File system organization and folder hierarchy
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchDirectoryDiagram}
+                  disabled={directoryLoading}
+                >
+                  {directoryLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
                   )}
-                </CardHeader>
+                </Button>
+              </CardHeader>
 
-                {/* Drill-down navigation for dependency diagrams */}
-                {type === 'dependency' && (availablePaths.length > 0 || currentPath) && (
-                  <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
-                    {/* Breadcrumb navigation */}
-                    <div className="flex items-center gap-1 text-sm">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2"
-                        onClick={() => navigateToPath('')}
-                        disabled={!currentPath}
-                      >
-                        <Home className="h-4 w-4 mr-1" />
-                        Root
-                      </Button>
-                      {breadcrumbSegments.map((segment, index) => (
-                        <div key={index} className="flex items-center">
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => navigateToPath(breadcrumbSegments.slice(0, index + 1).join('/'))}
-                            disabled={index === breadcrumbSegments.length - 1}
-                          >
-                            {segment}
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Dropdown for quick navigation */}
-                    {availablePaths.length > 0 && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-7 ml-auto">
-                            <FolderTree className="h-4 w-4 mr-1" />
-                            Navigate
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto w-[250px]">
-                          <DropdownMenuLabel>Navigate to directory</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => navigateToPath('')}>
-                            <Home className="h-4 w-4 mr-2" />
-                            Root (top-level)
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {availablePaths.slice(0, 50).map((path) => (
-                            <DropdownMenuItem
-                              key={path}
-                              onClick={() => navigateToPath(path)}
-                              className={currentPath === path ? 'bg-accent' : ''}
-                            >
-                              <span className="truncate">{path}</span>
-                            </DropdownMenuItem>
-                          ))}
-                          {availablePaths.length > 50 && (
-                            <DropdownMenuItem disabled>
-                              ... and {availablePaths.length - 50} more
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
+              <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
+                {directoryLoading ? (
+                  <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Generating diagram...</span>
+                  </div>
+                ) : directoryError ? (
+                  <div className="flex-1 min-h-[200px] flex items-center justify-center">
+                    <Alert variant="destructive" className="max-w-lg">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{directoryError}</AlertDescription>
+                    </Alert>
+                  </div>
+                ) : directoryDiagram ? (
+                  <MermaidDiagram chart={directoryDiagram.mermaid_code} id="directory" />
+                ) : (
+                  <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
+                    <Button onClick={fetchDirectoryDiagram}>
+                      Generate Diagram
+                    </Button>
                   </div>
                 )}
-
-                <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
-                  {data.loading ? (
-                    <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg">
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                      <span className="ml-2 text-muted-foreground">Generating diagram...</span>
-                    </div>
-                  ) : data.error ? (
-                    <div className="flex-1 min-h-[200px] flex items-center justify-center">
-                      <Alert variant="destructive" className="max-w-lg">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Error</AlertTitle>
-                        <AlertDescription>{data.error}</AlertDescription>
-                      </Alert>
-                    </div>
-                  ) : data.diagram ? (
-                    <MermaidDiagram
-                      chart={data.diagram.mermaid_code}
-                      id={type}
-                      metadata={type === 'dependency' ? (data.diagram.metadata as Record<string, any>) : undefined}
-                      onNodeClick={type === 'dependency' ? handleNodeClick : undefined}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
-                      <Button onClick={() => fetchDiagram(type as DiagramType, '')}>
-                        Generate Diagram
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
-
-      {/* Diagram Statistics - fixed at bottom */}
-      {hasStatistics && (
-        <Card className="flex-shrink-0 mt-2">
-          <CardContent className="py-2 px-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-medium text-muted-foreground">Statistics:</span>
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 text-sm">
-              {Object.entries(getDisplayableStats(currentDiagramData.diagram!.metadata as Record<string, unknown>)).map(([key, value]) => (
-                <div key={key} className="flex flex-col px-2 py-1 bg-muted/50 rounded">
-                  <span className="text-muted-foreground text-xs truncate">{key}</span>
-                  <span className="font-semibold">
-                    {typeof value === 'number' ? value.toLocaleString() : value}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

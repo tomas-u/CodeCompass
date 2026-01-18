@@ -606,3 +606,79 @@ class DependencyGraph:
         ]
         dep_counts.sort(key=lambda x: x[1], reverse=True)
         return dep_counts[:n]
+
+    def get_ego_graph(self, file_path: str) -> Dict[str, Any]:
+        """
+        Get the ego graph for a specific file - its direct imports and dependents.
+
+        Args:
+            file_path: The file to center the graph on (relative path)
+
+        Returns:
+            Dictionary with the file, its imports, and its dependents
+        """
+        if file_path not in self.graph:
+            return {"error": f"File not found: {file_path}"}
+
+        node_data = self.graph.nodes[file_path]
+
+        # Get what this file imports (outgoing edges)
+        imports = []
+        for target in self.graph.successors(file_path):
+            target_data = self.graph.nodes[target]
+            imports.append({
+                "file": target,
+                "module_name": target_data.get("module_name", target),
+                "language": target_data.get("language", "Unknown"),
+            })
+
+        # Get what imports this file (incoming edges)
+        imported_by = []
+        for source in self.graph.predecessors(file_path):
+            source_data = self.graph.nodes[source]
+            imported_by.append({
+                "file": source,
+                "module_name": source_data.get("module_name", source),
+                "language": source_data.get("language", "Unknown"),
+            })
+
+        # Check if this file is part of any circular dependency
+        circular_deps = self.detect_circular_dependencies()
+        in_cycle = any(file_path in cycle for cycle in circular_deps)
+        cycles_involved = [cycle for cycle in circular_deps if file_path in cycle]
+
+        return {
+            "file": file_path,
+            "module_name": node_data.get("module_name", file_path),
+            "language": node_data.get("language", "Unknown"),
+            "imports": imports,
+            "imports_count": len(imports),
+            "imported_by": imported_by,
+            "imported_by_count": len(imported_by),
+            "external_deps": node_data.get("external_deps", []),
+            "is_leaf": len(imports) == 0,
+            "is_root": len(imported_by) == 0,
+            "in_circular_dependency": in_cycle,
+            "circular_cycles": cycles_involved,
+        }
+
+    def get_file_list(self) -> List[Dict[str, Any]]:
+        """
+        Get a list of all files with basic dependency info for search/selection.
+
+        Returns:
+            List of files with import counts
+        """
+        files = []
+        for node in self.graph.nodes():
+            node_data = self.graph.nodes[node]
+            files.append({
+                "file": node,
+                "module_name": node_data.get("module_name", node),
+                "language": node_data.get("language", "Unknown"),
+                "imports_count": self.graph.out_degree(node),
+                "imported_by_count": self.graph.in_degree(node),
+            })
+        # Sort by most connections (imports + imported_by)
+        files.sort(key=lambda x: x["imports_count"] + x["imported_by_count"], reverse=True)
+        return files

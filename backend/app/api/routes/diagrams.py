@@ -393,3 +393,133 @@ async def regenerate_all_diagrams(
         "generated": generated,
         "errors": errors if errors else None
     }
+
+
+def _get_dependency_graph(project: Project):
+    """Helper to get dependency graph for a project."""
+    if not project.local_path or not Path(project.local_path).exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Project has not been analyzed yet. Run analysis first."
+        )
+
+    analyzer = GenericAnalyzer(
+        repo_path=project.local_path,
+        max_file_size_mb=settings.max_file_size_mb,
+        use_gitignore=True
+    )
+    analyzer.analyze()
+
+    dep_graph = analyzer.get_dependency_graph()
+    if not dep_graph:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to build dependency graph"
+        )
+
+    return dep_graph
+
+
+@router.get("/{project_id}/dependencies/summary")
+async def get_dependency_summary(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get dependency summary statistics for a project.
+
+    Returns overview metrics, circular dependencies, and top files.
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    summary = dep_graph.get_summary()
+    circular_report = dep_graph.get_circular_dependencies_report()
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "stats": {
+            "total_files": summary["total_modules"],
+            "total_dependencies": summary["total_dependencies"],
+            "max_depth": summary["max_dependency_depth"],
+            "leaf_files": len(summary["leaf_nodes"]),
+            "root_files": len(summary["root_nodes"]),
+        },
+        "circular_dependencies": {
+            "count": circular_report["count"],
+            "has_circular": circular_report["has_circular_dependencies"],
+            "cycles": circular_report["cycles"],
+        },
+        "most_imported": [
+            {"file": f, "count": c} for f, c in summary["most_imported"]
+        ],
+        "most_dependencies": [
+            {"file": f, "count": c} for f, c in summary["most_dependencies"]
+        ],
+    }
+
+
+@router.get("/{project_id}/dependencies/files")
+async def get_dependency_files(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all files with dependency counts for search/selection.
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    files = dep_graph.get_file_list()
+
+    return {
+        "project_id": project_id,
+        "files": files,
+        "total": len(files),
+    }
+
+
+@router.get("/{project_id}/dependencies/file/{file_path:path}")
+async def get_file_dependencies(
+    project_id: str,
+    file_path: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the ego graph for a specific file - its imports and dependents.
+
+    Args:
+        project_id: Project ID
+        file_path: Relative path to the file within the project
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    ego_data = dep_graph.get_ego_graph(file_path)
+
+    if "error" in ego_data:
+        raise HTTPException(status_code=404, detail=ego_data["error"])
+
+    return {
+        "project_id": project_id,
+        **ego_data,
+    }
