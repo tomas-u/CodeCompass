@@ -44,6 +44,7 @@ Branch protection is enabled on `main`. All changes must go through pull request
    - Push final changes to the feature branch
    - Create a pull request: `gh pr create --base main --head <branch-name>`
    - Include a clear description of changes in the PR
+   - Merge using **squash and merge** to keep main history clean: `gh pr merge --squash`
 
 4. **NEVER:**
    - Push directly to `main` branch
