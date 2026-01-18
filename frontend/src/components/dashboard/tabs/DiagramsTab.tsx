@@ -37,6 +37,47 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
   const [zoom, setZoom] = useState(10);
   const [copied, setCopied] = useState(false);
 
+  // Pan/drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [scrollStart, setScrollStart] = useState({ x: 0, y: 0 });
+
+  // Handle mouse down - start dragging
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!containerRef.current) return;
+    // Only start drag on left mouse button
+    if (e.button !== 0) return;
+
+    setIsDragging(true);
+    setDragStart({ x: e.clientX, y: e.clientY });
+    setScrollStart({
+      x: containerRef.current.scrollLeft,
+      y: containerRef.current.scrollTop,
+    });
+    e.preventDefault();
+  }, []);
+
+  // Handle mouse move - drag to pan
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging || !containerRef.current) return;
+
+    const deltaX = e.clientX - dragStart.x;
+    const deltaY = e.clientY - dragStart.y;
+
+    containerRef.current.scrollLeft = scrollStart.x - deltaX;
+    containerRef.current.scrollTop = scrollStart.y - deltaY;
+  }, [isDragging, dragStart, scrollStart]);
+
+  // Handle mouse up - stop dragging
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Handle mouse leave - stop dragging if mouse leaves container
+  const handleMouseLeave = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
   useEffect(() => {
     const renderDiagram = async () => {
       if (!chart) return;
@@ -115,11 +156,17 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
       {/* Diagram - fills available height, SVG is sanitized with DOMPurify before being stored */}
       <div
         ref={containerRef}
-        className="overflow-auto p-4 bg-muted/30 rounded-lg flex-1 min-h-[200px]"
+        className={`overflow-auto p-4 bg-muted/30 rounded-lg flex-1 min-h-[200px] ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeave}
       >
         {svg ? (
           <div
-            className="inline-block origin-top-left"
+            className="inline-block origin-top-left select-none"
             style={{ transform: `scale(${zoom})` }}
             dangerouslySetInnerHTML={{ __html: svg }}
           />
