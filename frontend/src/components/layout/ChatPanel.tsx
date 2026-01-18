@@ -310,6 +310,7 @@ export function ChatPanel() {
             size="icon"
             onClick={clearChat}
             title="Clear conversation"
+            data-testid="chat-clear-button"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -348,6 +349,7 @@ export function ChatPanel() {
             <div
               key={message.id}
               className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              data-testid={`chat-message-${message.role}`}
             >
               {message.role === 'assistant' && (
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -400,7 +402,7 @@ export function ChatPanel() {
 
           {/* Typing indicator */}
           {isAiTyping && (
-            <div className="flex gap-3">
+            <div className="flex gap-3" data-testid="chat-typing-indicator">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <Bot className="h-4 w-4 text-primary" />
               </div>
@@ -431,8 +433,9 @@ export function ChatPanel() {
             className="flex-1 min-h-[44px] max-h-[120px] resize-none"
             rows={2}
             maxLength={500}
+            data-testid="chat-input"
           />
-          <Button onClick={handleSend} disabled={!inputValue.trim() || isAiTyping} className="h-[44px]">
+          <Button onClick={handleSend} disabled={!inputValue.trim() || isAiTyping} className="h-[44px]" data-testid="chat-send-button">
             <Send className="h-4 w-4" />
           </Button>
         </div>
