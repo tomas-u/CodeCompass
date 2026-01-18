@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import logging
 
 from .base import BaseAnalyzer
+from .dependency_graph import DependencyGraph
 from .utils.language_detector import LanguageDetector
 from .utils.gitignore_parser import GitignoreParser
 from .utils.tree_sitter_utils import TreeSitterManager
@@ -44,6 +45,11 @@ class GenericAnalyzer(BaseAnalyzer):
         if self.use_gitignore:
             self.gitignore_parser.parse_gitignore(str(self.repo_path))
 
+        # Dependency graph (built during analysis)
+        self._dependency_graph: Optional[DependencyGraph] = None
+        self._file_imports: Dict[str, List[str]] = {}
+        self._file_languages: Dict[str, str] = {}
+
     def analyze(self) -> Dict[str, Any]:
         """
         Run full repository analysis.
@@ -53,13 +59,16 @@ class GenericAnalyzer(BaseAnalyzer):
         """
         logger.info(f"Starting analysis of {self.repo_path}")
 
-        # Reset stats
+        # Reset stats and dependency tracking
         self.stats = {
             "files": 0,
             "directories": 0,
             "lines_of_code": 0,
             "languages": {}
         }
+        self._file_imports = {}
+        self._file_languages = {}
+        self._dependency_graph = None
 
         # Collect files to analyze
         files_to_analyze = self._collect_files()
@@ -70,9 +79,16 @@ class GenericAnalyzer(BaseAnalyzer):
             try:
                 file_stats = self.analyze_file(str(file_path), language)
                 self._update_stats(language, file_stats)
+
+                # Track imports for dependency graph
+                self._file_imports[str(file_path)] = file_stats.get("imports", [])
+                self._file_languages[str(file_path)] = language
             except Exception as e:
                 logger.warning(f"Error analyzing {file_path}: {e}")
                 continue
+
+        # Build dependency graph from collected imports
+        self._build_dependency_graph()
 
         logger.info(f"Analysis complete: {self.stats['files']} files, "
                    f"{self.stats['lines_of_code']} LOC")
@@ -279,3 +295,62 @@ class GenericAnalyzer(BaseAnalyzer):
 
         traverse(root_node)
         return list(set(imports))  # Remove duplicates
+
+    def _build_dependency_graph(self) -> None:
+        """
+        Build dependency graph from collected file imports.
+
+        Groups files by language and builds separate graphs, then combines.
+        """
+        if not self._file_imports:
+            logger.debug("No files to build dependency graph from")
+            return
+
+        self._dependency_graph = DependencyGraph(str(self.repo_path))
+
+        # Group imports by language
+        imports_by_language: Dict[str, Dict[str, List[str]]] = {}
+        for file_path, imports in self._file_imports.items():
+            language = self._file_languages.get(file_path, "Unknown")
+            if language not in imports_by_language:
+                imports_by_language[language] = {}
+            imports_by_language[language][file_path] = imports
+
+        # Build graph with the primary language (most files)
+        primary_language = max(
+            imports_by_language.keys(),
+            key=lambda lang: len(imports_by_language[lang]),
+            default="Python"
+        )
+
+        # Build from all files but use primary language for resolution
+        self._dependency_graph.build_from_analysis(
+            self._file_imports,
+            language=primary_language
+        )
+
+        logger.info(
+            f"Built dependency graph: {self._dependency_graph.graph.number_of_nodes()} "
+            f"modules, {self._dependency_graph.graph.number_of_edges()} dependencies"
+        )
+
+    def get_dependency_graph(self) -> Optional[DependencyGraph]:
+        """
+        Get the dependency graph built during analysis.
+
+        Returns:
+            DependencyGraph instance or None if analysis hasn't been run
+        """
+        return self._dependency_graph
+
+    def get_dependency_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of the dependency graph.
+
+        Returns:
+            Dictionary with dependency statistics, or empty dict if no graph
+        """
+        if self._dependency_graph is None:
+            return {}
+
+        return self._dependency_graph.get_summary()
