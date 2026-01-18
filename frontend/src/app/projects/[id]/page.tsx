@@ -66,7 +66,7 @@ export default function ProjectDetailPage() {
 
   // Poll project status when project is being analyzed
   const activeStates = ['analyzing', 'scanning', 'cloning', 'pending'];
-  const shouldPoll = project && activeStates.includes(project.status);
+  const shouldPoll = project ? activeStates.includes(project.status) : false;
 
   useProjectStatus({
     projectId,
@@ -88,8 +88,8 @@ export default function ProjectDetailPage() {
     },
     onAnalysisUpdate: (analysis) => {
       // Update progress percentage if available
-      if (analysis.progress !== undefined) {
-        setAnalysisProgress(analysis.progress);
+      if (analysis.progress?.overall_percent !== undefined) {
+        setAnalysisProgress(analysis.progress.overall_percent);
       }
     },
     onError: (errorMessage) => {

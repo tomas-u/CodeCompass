@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mockFileTree, mockFileContent } from '@/lib/mock-data';
+import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
 
 interface FileNode {
   name: string;
@@ -122,6 +123,7 @@ export function FilesTab() {
 
   return (
     <div className="p-6 h-full">
+      <MockDataIndicator label="All Files Mock Data" variant="overlay">
       <div className="grid grid-cols-[350px_1fr] gap-6 h-[calc(100vh-12rem)]">
         {/* File Tree */}
         <Card className="flex flex-col">
@@ -190,6 +192,7 @@ export function FilesTab() {
           )}
         </Card>
       </div>
+      </MockDataIndicator>
     </div>
   );
 }

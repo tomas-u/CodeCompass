@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
 import { mockChatMessages } from '@/lib/mock-data';
+import { MockDataIndicator, MockDataBadge } from '@/components/ui/mock-data-indicator';
 
 export function ChatPanel() {
   const { toggleChatPanel, chatMessages, addChatMessage, isAiTyping, setIsAiTyping, clearChat } = useAppStore();
@@ -21,6 +22,7 @@ export function ChatPanel() {
 
   // Use mock messages if store is empty
   const displayMessages = chatMessages.length > 0 ? chatMessages : mockChatMessages;
+  const isUsingMockMessages = chatMessages.length === 0;
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -180,6 +182,7 @@ export function ChatPanel() {
         <div className="flex items-center gap-2">
           <Bot className="h-5 w-5 text-primary" />
           <span className="font-medium">Ask about this codebase</span>
+          <MockDataBadge label="Mock AI" />
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -212,6 +215,13 @@ export function ChatPanel() {
 
       {/* Messages - Always rendered for proper flex layout */}
       <div className={`flex-1 overflow-hidden ${isMinimized ? 'hidden' : ''}`}>
+        {isUsingMockMessages && (
+          <div className="px-4 pt-2">
+            <MockDataIndicator label="Sample Conversation" className="py-1 px-2 text-xs">
+              <span className="text-muted-foreground text-xs px-2">These are example messages showing chat capabilities</span>
+            </MockDataIndicator>
+          </div>
+        )}
         <ScrollArea className="h-full p-4" ref={scrollRef}>
           <div className="space-y-4">
           {displayMessages.map((message) => (

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { mockArchitectureReport } from '@/lib/mock-data';
+import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
 
 const architectureMarkdown = `# Architecture Report: fastapi-example
 
@@ -226,6 +227,7 @@ export function ReportsTab() {
         </p>
       </div>
 
+      <MockDataIndicator label="All Reports Mock Data" variant="overlay">
       <Tabs value={activeReport} onValueChange={(v) => setActiveReport(v as any)}>
         <TabsList>
           <TabsTrigger value="architecture">
@@ -380,6 +382,7 @@ export function ReportsTab() {
           </Card>
         </TabsContent>
       </Tabs>
+      </MockDataIndicator>
     </div>
   );
 }
