@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { DependencyOverview } from '@/components/dependencies';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
 import type { Diagram } from '@/types/api';
 
 // Initialize mermaid with settings for directory diagrams
@@ -248,7 +249,19 @@ export function DiagramsTab() {
     );
   }
 
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = analysisStates.includes(currentProject.status);
+
   if (!isProjectReady) {
+    // Show loading state while analyzing, otherwise show "Analysis Required"
+    if (isAnalyzing) {
+      return (
+        <div className="p-6">
+          <AnalysisInProgress status={currentProject.status} />
+        </div>
+      );
+    }
     return (
       <div className="p-6">
         <Alert>

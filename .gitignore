@@ -78,3 +78,4 @@ data/
 
 # SQLite database
 backend/*.db
+test-results/

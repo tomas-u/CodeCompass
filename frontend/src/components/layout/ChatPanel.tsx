@@ -17,8 +17,14 @@ export function ChatPanel() {
   const [inputValue, setInputValue] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Track when component is mounted (client-side only)
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Use mock messages if store is empty
   const displayMessages = chatMessages.length > 0 ? chatMessages : mockChatMessages;
@@ -91,6 +97,9 @@ export function ChatPanel() {
   };
 
   const formatTimestamp = (isoString: string) => {
+    // Return empty string on server to avoid hydration mismatch
+    if (!isMounted) return '';
+
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();

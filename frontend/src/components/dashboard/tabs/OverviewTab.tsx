@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
 import { mockProjects, mockArchitectureReport } from '@/lib/mock-data';
 import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
 
 export function OverviewTab() {
   const { currentProjectId, projects } = useAppStore();
@@ -13,6 +14,19 @@ export function OverviewTab() {
   // Get current project
   const allProjects = projects.length > 0 ? projects : mockProjects;
   const currentProject = allProjects.find(p => p.id === currentProjectId) || mockProjects[0];
+
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
+
+  // Show loading state while analyzing
+  if (isAnalyzing) {
+    return (
+      <div className="p-6">
+        <AnalysisInProgress status={currentProject.status} />
+      </div>
+    );
+  }
 
   // Use real project stats if available, otherwise fall back to mock
   const hasRealStats = currentProject?.stats && currentProject.status === 'ready';

@@ -1,5 +1,6 @@
 """Real code analysis service using Tree-sitter."""
 
+import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -13,6 +14,13 @@ from app.services.analyzer.generic_analyzer import GenericAnalyzer
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def _debug_delay(phase: str) -> None:
+    """Add debug delay between analysis phases if configured."""
+    if settings.debug_analysis_delay > 0:
+        logger.debug(f"Debug delay: waiting {settings.debug_analysis_delay}s after {phase}")
+        await asyncio.sleep(settings.debug_analysis_delay)
 
 
 async def run_analysis(project_id: str) -> None:
@@ -44,6 +52,7 @@ async def run_analysis(project_id: str) -> None:
             logger.info(f"Phase 1: Cloning repository for project {project_id}")
             project.status = ProjectStatus.cloning
             db.commit()
+            await _debug_delay("cloning status set")
 
             # Determine clone location
             clone_dir = Path("./repos") / project_id
@@ -88,6 +97,7 @@ async def run_analysis(project_id: str) -> None:
         logger.info(f"Phase 2: Scanning repository for project {project_id}")
         project.status = ProjectStatus.scanning
         db.commit()
+        await _debug_delay("scanning status set")
 
         # Initialize analyzer
         analyzer = GenericAnalyzer(
@@ -102,6 +112,7 @@ async def run_analysis(project_id: str) -> None:
         logger.info(f"Phase 3: Analyzing code for project {project_id}")
         project.status = ProjectStatus.analyzing
         db.commit()
+        await _debug_delay("analyzing status set")
 
         # Run analysis
         stats = analyzer.analyze()

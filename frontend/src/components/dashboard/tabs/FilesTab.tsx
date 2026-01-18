@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mockFileTree, mockFileContent } from '@/lib/mock-data';
 import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
+import { useAppStore } from '@/lib/store';
 
 interface FileNode {
   name: string;
@@ -112,14 +114,30 @@ function TreeNode({ node, depth, onSelect, selectedFile }: TreeNodeProps) {
 }
 
 export function FilesTab() {
+  const { currentProjectId, projects } = useAppStore();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const currentProject = projects.find(p => p.id === currentProjectId);
+
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
 
   const handleFileSelect = (node: FileNode) => {
     if (node.type === 'file') {
       setSelectedFile(node);
     }
   };
+
+  // Show loading state while analyzing
+  if (isAnalyzing) {
+    return (
+      <div className="p-6">
+        <AnalysisInProgress status={currentProject.status} />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 h-full">
