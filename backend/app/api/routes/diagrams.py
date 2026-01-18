@@ -150,7 +150,8 @@ def generate_directory_diagram(project: Project, db: Session, direction: str = "
     diagram_data = generator.generate_directory_diagram(
         repo_path=project.local_path,
         max_depth=3,
-        direction=direction
+        direction=direction,
+        project_name=project.name
     )
 
     # Direction is a display preference - always return fresh diagram without caching

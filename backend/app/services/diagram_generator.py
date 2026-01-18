@@ -615,7 +615,8 @@ class DiagramGenerator:
         self,
         repo_path: str,
         max_depth: int = 3,
-        direction: str = "LR"
+        direction: str = "LR",
+        project_name: str = None
     ) -> Dict[str, Any]:
         """
         Generate a directory structure diagram.
@@ -624,6 +625,7 @@ class DiagramGenerator:
             repo_path: Path to the repository
             max_depth: Maximum directory depth to show
             direction: Graph direction - "LR" (left-right) or "TD" (top-down)
+            project_name: Optional project name for root node (defaults to directory name)
 
         Returns:
             Dictionary with diagram data
@@ -633,7 +635,8 @@ class DiagramGenerator:
 
         root = Path(repo_path)
         root_id = "root"
-        root_name = root.name.replace('"', "'")
+        # Use project name if provided, otherwise fall back to directory name
+        root_name = (project_name or root.name).replace('"', "'")
         lines.append(f'    {root_id}["{root_name}"]')
 
         self._add_directory_nodes(
