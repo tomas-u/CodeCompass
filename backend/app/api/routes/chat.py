@@ -1,6 +1,10 @@
 """Chat API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+import json
+import logging
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import uuid4
 
@@ -16,46 +20,113 @@ from app.schemas.chat import (
     MessageRole,
     TokenUsage,
 )
-from app.mock_data import get_mock_project, MOCK_CHAT_SESSIONS
+from app.mock_data import MOCK_CHAT_SESSIONS
+from app.database import get_db
+from app.models.project import Project
+from app.services.rag_service import get_rag_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/{project_id}/chat", response_model=ChatResponse)
-async def chat(project_id: str, request: ChatRequest):
-    """Send chat message."""
-    project = get_mock_project(project_id)
+async def stream_chat_response(project_id: str, project_name: str, message: str, max_chunks: int):
+    """Generate SSE stream for chat response."""
+    rag_service = get_rag_service()
+
+    async for event in rag_service.chat_with_context_stream(
+        query=message,
+        project_id=project_id,
+        project_name=project_name,
+        max_chunks=max_chunks,
+    ):
+        event_type = event.get("type", "unknown")
+        event_data = json.dumps(event)
+        yield f"event: {event_type}\ndata: {event_data}\n\n"
+
+
+@router.post("/{project_id}/chat")
+async def chat(project_id: str, request: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Send chat message with RAG-powered response.
+
+    Uses the RAG service to retrieve relevant code context and generate
+    context-aware responses.
+
+    If stream=true in options, returns Server-Sent Events (SSE) stream.
+    Otherwise returns complete ChatResponse.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Generate or use existing session
+    # Determine options
+    max_chunks = 5
+    include_sources = True
+    stream = False
+    if request.options:
+        max_chunks = request.options.max_context_chunks
+        include_sources = request.options.include_sources
+        stream = request.options.stream
+
+    # Handle streaming response
+    if stream:
+        return StreamingResponse(
+            stream_chat_response(
+                project_id=project_id,
+                project_name=project.name,
+                message=request.message,
+                max_chunks=max_chunks,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",  # Disable buffering in nginx
+            },
+        )
+
+    # Non-streaming response (existing behavior)
     session_id = request.session_id or str(uuid4())
     message_id = str(uuid4())
 
-    # Mock response
-    response_content = ChatResponseContent(
-        content=f"""Based on the code analysis, here's what I found:
+    # Get RAG service
+    rag_service = get_rag_service()
 
-The codebase uses a **layered architecture pattern** with clear separation between API routes, services, and models.
+    # Use RAG service to generate response
+    rag_response = await rag_service.chat_with_context(
+        query=request.message,
+        project_id=project_id,
+        project_name=project.name,
+        max_chunks=max_chunks,
+        include_sources=include_sources,
+    )
 
-Key components:
-- **API Layer**: Handles HTTP requests/responses
-- **Service Layer**: Contains business logic
-- **Data Layer**: Database models and operations
+    # Convert RAG sources to ChatSource objects
+    sources = []
+    if include_sources and rag_response.sources:
+        for chunk in rag_response.sources:
+            # Create a snippet (first 200 chars of content)
+            snippet = chunk.content[:200] + "..." if len(chunk.content) > 200 else chunk.content
 
-For your specific question about "{request.message}", you can find the relevant code in the following files:""",
-        format="markdown",
-        sources=[
-            ChatSource(
-                file_path="src/services/auth_service.py",
-                start_line=15,
-                end_line=45,
-                snippet="class AuthService:\n    async def login...",
-                relevance_score=0.95
+            source = ChatSource(
+                file_path=chunk.file_path,
+                start_line=chunk.start_line,
+                end_line=chunk.end_line,
+                snippet=snippet,
+                relevance_score=chunk.score or 0.0,
             )
-        ] if request.options and request.options.include_sources else [],
-        tokens_used=TokenUsage(prompt=1500, completion=350)
+            sources.append(source)
+
+    response_content = ChatResponseContent(
+        content=rag_response.content,
+        format="markdown",
+        sources=sources,
+        tokens_used=TokenUsage(
+            prompt=rag_response.prompt_tokens,
+            completion=rag_response.completion_tokens,
+        )
     )
 
     return ChatResponse(
@@ -67,9 +138,9 @@ For your specific question about "{request.message}", you can find the relevant 
 
 
 @router.get("/{project_id}/chat/sessions", response_model=ChatSessionListResponse)
-async def list_chat_sessions(project_id: str):
+async def list_chat_sessions(project_id: str, db: Session = Depends(get_db)):
     """List chat sessions."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -89,9 +160,9 @@ async def list_chat_sessions(project_id: str):
 
 
 @router.get("/{project_id}/chat/sessions/{session_id}", response_model=ChatSessionResponse)
-async def get_chat_session(project_id: str, session_id: str):
+async def get_chat_session(project_id: str, session_id: str, db: Session = Depends(get_db)):
     """Get chat session history."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -124,9 +195,9 @@ async def get_chat_session(project_id: str, session_id: str):
 
 
 @router.delete("/{project_id}/chat/sessions/{session_id}")
-async def delete_chat_session(project_id: str, session_id: str):
+async def delete_chat_session(project_id: str, session_id: str, db: Session = Depends(get_db)):
     """Delete chat session."""
-    project = get_mock_project(project_id)
+    project = db.query(Project).filter(Project.id == project_id).first()
 
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

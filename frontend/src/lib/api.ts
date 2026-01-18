@@ -474,6 +474,104 @@ class CodeCompassAPI {
   }
 
   /**
+   * Send chat message with streaming response
+   *
+   * @param projectId - Project ID
+   * @param message - User message
+   * @param onToken - Callback for each token received
+   * @param onSources - Callback for sources (called once before tokens)
+   * @param onDone - Callback when stream is complete
+   * @param onError - Callback for errors
+   */
+  async sendChatMessageStreaming(
+    projectId: string,
+    message: string,
+    onToken: (token: string) => void,
+    onSources: (sources: Array<{
+      file_path: string;
+      start_line: number;
+      end_line: number;
+      snippet: string;
+      relevance_score: number;
+    }>) => void,
+    onDone: () => void,
+    onError: (error: Error) => void,
+  ): Promise<void> {
+    const url = `${API_CONFIG.baseURL}/api/projects/${projectId}/chat`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          options: { stream: true },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7);
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              switch (eventType) {
+                case 'token':
+                  if (data.content) {
+                    onToken(data.content);
+                  }
+                  break;
+                case 'sources':
+                  if (data.sources) {
+                    onSources(data.sources);
+                  }
+                  break;
+                case 'done':
+                  onDone();
+                  break;
+                case 'error':
+                  onError(new Error(data.message || 'Unknown streaming error'));
+                  break;
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+            eventType = '';
+          }
+        }
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error('Streaming failed'));
+    }
+  }
+
+  /**
    * List chat sessions
    */
   async listChatSessions(projectId: string): Promise<ChatSessionListItem[]> {
