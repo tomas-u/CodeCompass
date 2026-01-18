@@ -236,7 +236,9 @@ class DiagramGenerator:
             languages = [graph.nodes[n].get("language", "default") for n in nodes]
             primary_language = max(set(languages), key=languages.count)
 
-            lines.append(f"    subgraph {group_id}[{directory}]")
+            # Sanitize directory label for Mermaid (brackets are special)
+            dir_label = directory.replace('[', '(').replace(']', ')')
+            lines.append(f"    subgraph {group_id}[{dir_label}]")
 
             for node in nodes:
                 node_data = graph.nodes[node]
@@ -366,6 +368,8 @@ class DiagramGenerator:
         # Use just the filename
         name = Path(path).name
         # Escape special characters for Mermaid
+        # Square brackets define node shapes, so replace them
+        name = name.replace('[', '(').replace(']', ')')
         name = name.replace('"', "'")
         return name
 
