@@ -16,7 +16,7 @@ import { getErrorMessage } from '@/lib/api-error';
 
 export function WelcomePage() {
   const router = useRouter();
-  const { fetchProjects, setCurrentProject, addProject } = useAppStore();
+  const { fetchProjects, addProject } = useAppStore();
   const [gitUrl, setGitUrl] = useState('');
   const [gitBranch, setGitBranch] = useState('main');
   const [localPath, setLocalPath] = useState('');

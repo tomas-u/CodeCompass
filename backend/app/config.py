@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     embedding_dimensions: int = 384
 
     # Debug settings
-    debug_analysis_delay: int = 4  # Seconds to delay between analysis phases (0 to disable)
+    debug_analysis_delay: int = 0  # Seconds to delay between analysis phases (0 to disable)
 
     # Limits
     max_file_size_mb: int = 10

@@ -35,14 +35,9 @@ export default function ProjectDetailPage() {
 
   // Try to get initial project data from store (for instant header rendering)
   const storeProject = projects.find(p => p.id === projectId);
-  const initialProject = storeProject ? {
-    ...storeProject,
-    description: null,
-    branch: null,
-    local_path: null,
-    settings: null,
-    updated_at: storeProject.created_at,
-  } as Project : null;
+  const initialProject: Project | null = storeProject
+    ? { ...storeProject, updated_at: storeProject.created_at }
+    : null;
 
   const [project, setProject] = useState<Project | null>(initialProject);
   const [isLoading, setIsLoading] = useState(!initialProject); // Only show skeleton if no store data
