@@ -4,8 +4,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data          # SQLite + cloned repos
-      - ./backend:/app            # Dev: hot reload
+      - ./data:/app/data               # SQLite + cloned repos
+      - ./backend/app:/app/app         # Dev: hot reload (source code only)
     environment:
       - DATABASE_URL=sqlite:///data/codecompass.db
       - DATA_DIR=/app/data
