@@ -323,9 +323,25 @@ class CodeCompassAPI {
 
   /**
    * Get specific report
+   * @param generate - If true, generate report if it doesn't exist (default: true)
    */
-  async getReport(projectId: string, type: ReportType): Promise<Report> {
-    return request<Report>(`/api/projects/${projectId}/reports/${type}`);
+  async getReport(projectId: string, type: ReportType, generate: boolean = true): Promise<Report> {
+    return request<Report>(`/api/projects/${projectId}/reports/${type}?generate=${generate}`);
+  }
+
+  /**
+   * Generate or regenerate a report
+   * @param force - Force regeneration even if report exists
+   */
+  async generateReport(
+    projectId: string,
+    type: ReportType,
+    force: boolean = false
+  ): Promise<{ message: string; report_id: string; generation_time_ms: string }> {
+    return request<{ message: string; report_id: string; generation_time_ms: string }>(
+      `/api/projects/${projectId}/reports/generate?report_type=${type}&force=${force}`,
+      { method: 'POST' }
+    );
   }
 
   // ============================================================================
