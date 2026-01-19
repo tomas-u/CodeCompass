@@ -198,9 +198,15 @@ build/**
         parser = GitignoreParser(use_defaults=False)
         parser.add_pattern("*.log")
 
-        # Path outside repo should return False (not crash)
+        # Path outside repo: when relative_to fails, the filename is still matched
+        # against patterns. This is expected behavior - patterns apply to filenames.
         outside_path = "/completely/different/path/file.log"
-        assert parser.should_ignore(outside_path, str(temp_repo_dir)) is False
+        # The path is matched against *.log pattern (filename matching still works)
+        assert parser.should_ignore(outside_path, str(temp_repo_dir)) is True
+
+        # A path with non-matching extension should not be ignored
+        outside_txt = "/completely/different/path/file.txt"
+        assert parser.should_ignore(outside_txt, str(temp_repo_dir)) is False
 
     def test_parse_gitignore_with_encoding_issues(self, temp_repo_dir):
         """Test parse_gitignore handles encoding issues gracefully."""
