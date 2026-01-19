@@ -1,724 +1,247 @@
-# Claude Instructions
-
-When working on this project:
-- Always refer to the architecture in section 4 below
-- Follow the implementation phases in section 9
-- Use the tech stack decisions in the Quick Reference table
-- Check the verification plan (section 14) before completing tasks
-- Respect the decisions made in section 10 (LLM providers, database, etc.)
-
-**GitHub Issue Validation Workflow (CRITICAL):**
-When implementing any GitHub story/issue:
-1. **Before starting:** Read the GitHub issue (`gh issue view <number>`) to understand all tasks and acceptance criteria
-2. **During implementation:** Work through each acceptance criteria systematically
-3. **After completion:** Validate all work against the issue:
-   - Check off completed items in the issue body (`gh issue edit <number> --body`)
-   - Mark all completed checkboxes as `[x]`
-   - Add a completion summary showing what was achieved vs. what was required
-   - Update with coverage percentages, test counts, and any metrics that exceeded targets
-4. **Always verify:** Every checkbox must be validated before closing an issue
-
-**E2E Testing with MCP Playwright (CRITICAL):**
-When performing E2E tests with MCP Playwright tools:
-1. **NEVER use xvfb or attempt to fix screenshot rendering in WSL** - Headless Chromium in WSL cannot render visual content due to GPU limitations
-2. **ALWAYS use YAML accessibility tree snapshots** - Call `browser_snapshot()` WITHOUT filename parameter to get inline YAML output
-3. **Validate functionality using YAML structure** - The accessibility tree provides complete structural validation
-4. **If visual validation is required** - Run tests on native Linux with GPU support or Windows
-5. **Screenshot files will be blank/white in WSL** - This is expected and cannot be fixed with xvfb
-
-**Git Branching Workflow (CRITICAL):**
-Branch protection is enabled on `main`. All changes must go through pull requests.
-
-1. **Before starting any new story/feature:**
-   - Create a feature branch from main: `git checkout main && git pull && git checkout -b feature/<short-description>`
-   - Branch naming convention: `feature/<issue-number>-<short-description>` or `feature/<short-description>`
-   - Examples: `feature/56-function-extraction`, `feature/dependency-dashboard`, `fix/diagram-caching`
-
-2. **During development:**
-   - Commit frequently to the feature branch
-   - Keep commits focused and well-described
-   - Push to remote regularly: `git push -u origin <branch-name>`
-
-3. **When work is complete:**
-   - Ensure all tests pass and build succeeds
-   - Push final changes to the feature branch
-   - Create a pull request: `gh pr create --base main --head <branch-name>`
-   - Include a clear description of changes in the PR
-   - Merge using **squash and merge** to keep main history clean: `gh pr merge --squash`
-
-4. **NEVER:**
-   - Push directly to `main` branch
-   - Use `git push --force` on `main`
-   - Merge without a pull request
-
-Key commands:
-- Backend: `cd backend && uvicorn app.main:app --reload`
-- Frontend: `cd frontend && npm run dev`
-- Full stack: `docker-compose up`
-
----
-
-# CodeCompass - Product Requirements Document
+# Claude Instructions for CodeCompass
 
 ## Quick Reference
 
 | Aspect | Decision |
 |--------|----------|
-| **Stack** | FastAPI (Python) + Next.js + Tailwind |
-| **Database** | SQLite (MVP) + Qdrant (vectors) |
-| **LLM (Phase 1)** | `microsoft/Phi-3.5-mini-instruct` (self-hosted) |
-| **Embeddings** | `sentence-transformers/all-MiniLM-L6-v2` |
-| **LLM (Later)** | Ollama/LM Studio → Cloud APIs (optional) |
-| **Languages** | Python + JavaScript/TypeScript analyzers |
-| **Tasks** | FastAPI BackgroundTasks (no Redis/Celery) |
-| **Auth** | None (local single-user) |
-| **Deployment** | Docker Compose (local only) |
+| **Backend** | FastAPI + Python 3.11+ + SQLAlchemy |
+| **Frontend** | Next.js 14+ + Tailwind + TypeScript |
+| **Database** | SQLite (metadata) + Qdrant (vectors) |
+| **LLM** | Ollama (primary), supports cloud providers |
+| **Embeddings** | sentence-transformers/all-MiniLM-L6-v2 |
+| **Code Parsing** | Tree-sitter (30+ languages) |
 
----
+## Key Commands
 
-## Executive Summary
+```bash
+# Backend
+cd backend && uvicorn app.main:app --reload
 
-CodeCompass is an intelligent code analysis platform that helps developers and architects understand complex codebases through automated analysis, visual diagrams, and AI-powered Q&A. It transforms unfamiliar repositories into navigable knowledge bases.
+# Frontend
+cd frontend && npm run dev
 
----
+# Full stack
+docker compose up
 
-## 1. Product Vision
-
-**Mission:** Enable any developer to quickly understand and navigate unfamiliar codebases through intelligent analysis and natural language interaction.
-
-**Problem Statement:**
-- Developers spend 60%+ of time reading/understanding code rather than writing it
-- Onboarding to new codebases takes weeks or months
-- Documentation is often outdated or missing
-- Understanding system architecture requires significant tribal knowledge
-
-**Solution:** An automated platform that:
-1. Analyzes git repositories to extract structure, patterns, and relationships
-2. Generates comprehensive reports with visual Mermaid diagrams
-3. Creates a semantic vector database for intelligent code search
-4. Enables natural language Q&A about the codebase
-
----
-
-## 2. User Personas
-
-### Primary: New Team Member
-- Just joined a project, needs to understand codebase quickly
-- Wants to know "where does X happen?" and "how does Y work?"
-
-### Secondary: Tech Lead / Architect
-- Needs high-level system overview for decision-making
-- Wants to identify patterns, dependencies, and potential issues
-
-### Tertiary: External Auditor / Consultant
-- Limited time to understand a system
-- Needs quick architectural understanding
-
----
-
-## 3. Core Features
-
-### 3.1 Repository Ingestion
-- **Git Clone/Import:** Support public/private repos (GitHub, GitLab, Bitbucket, local)
-- **Smart Filtering:** Respect `.gitignore`, exclude build artifacts, node_modules, etc.
-- **Language Detection:** Auto-detect programming languages and frameworks
-- **Incremental Updates:** Re-analyze only changed files on subsequent scans
-
-### 3.2 Code Analysis Engine
-- **Static Analysis:**
-  - File structure and organization
-  - Module/package dependencies
-  - Class/function relationships
-  - Import/export analysis
-  - Entry points detection (main files, API routes, etc.)
-
-- **Pattern Detection:**
-  - Design patterns (MVC, Repository, Factory, etc.)
-  - Architectural patterns (Microservices, Monolith, etc.)
-  - Framework conventions (React components, FastAPI routes, etc.)
-
-- **Metrics:**
-  - Lines of code per module
-  - Complexity indicators
-  - Dependency depth
-  - File coupling analysis
-
-### 3.3 Report Generation
-- **Executive Summary:** High-level overview for non-technical stakeholders
-- **Architecture Report:** System design, layers, and component interactions
-- **Developer Guide:** Entry points, key files, common patterns
-- **Dependency Analysis:** External packages, internal modules, circular deps
-
-### 3.4 Mermaid Diagram Generation
-- **System Architecture Diagram:** High-level component overview
-- **Module Dependency Graph:** How packages/modules relate
-- **Class Diagrams:** OOP relationships (for applicable languages)
-- **Sequence Diagrams:** Key flows (API request handling, etc.)
-- **Entity Relationship Diagrams:** Database schema visualization
-- **Directory Tree Diagrams:** File structure visualization
-
-### 3.5 Vector Database & Semantic Search
-- **Code Embedding:** Convert code chunks to vectors using code-aware models
-- **Multi-level Chunking:**
-  - File level (whole file context)
-  - Function/class level (semantic units)
-  - Block level (logical sections)
-- **Metadata Storage:** File paths, language, type, relationships
-- **Hybrid Search:** Combine semantic + keyword search
-
-### 3.6 AI-Powered Q&A
-- **Natural Language Queries:** "How does authentication work?"
-- **Code-Aware Responses:** Include relevant code snippets
-- **Context-Aware:** Understands project structure and relationships
-- **Citation:** Always reference source files and line numbers
-
----
-
-## 4. Technical Architecture
-
-### 4.1 High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Frontend (Next.js)                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────────┐│
-│  │Dashboard │ │ Reports  │ │ Diagrams │ │    Chat Interface    ││
-│  └──────────┘ └──────────┘ └──────────┘ └──────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-                              │ REST/WebSocket
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     Backend (FastAPI)                            │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│  │ Repo Service │ │Analysis Svc  │ │      Q&A Service         │ │
-│  └──────────────┘ └──────────────┘ └──────────────────────────┘ │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│  │Report Gen    │ │ Diagram Gen  │ │    Embedding Service     │ │
-│  └──────────────┘ └──────────────┘ └──────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
-         │                │                      │
-         ▼                ▼                      ▼
-┌──────────────┐  ┌──────────────┐      ┌──────────────┐
-│  PostgreSQL  │  │    Redis     │      │    Qdrant    │
-│  (metadata)  │  │   (cache)    │      │  (vectors)   │
-└──────────────┘  └──────────────┘      └──────────────┘
-```
-
-### 4.2 Technology Stack
-
-**Frontend:**
-- Next.js 14+ (App Router)
-- Tailwind CSS
-- TypeScript
-- Mermaid.js for diagram rendering
-- React Query for data fetching
-- Zustand for state management
-
-**Backend:**
-- Python 3.11+
-- FastAPI
-- Pydantic for validation
-- SQLAlchemy for ORM
-- FastAPI BackgroundTasks for async jobs
-- Tree-sitter for code parsing
-
-**Databases:**
-- SQLite: Projects, analysis metadata, reports (simple, file-based)
-- Qdrant: Vector embeddings for semantic search
-
-**AI/ML - Flexible LLM Architecture:**
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    LLM Provider Interface                        │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              Abstract LLMProvider Base Class              │   │
-│  │  - generate(prompt) -> str                                │   │
-│  │  - embed(text) -> List[float]                             │   │
-│  │  - get_model_info() -> dict                               │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-         ┌────────────────────┼────────────────────┐
-         ▼                    ▼                    ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  LocalProvider  │  │  OllamaProvider │  │  CloudProvider  │
-│  (HuggingFace   │  │  (API to local  │  │  (OpenAI,       │
-│   Transformers) │  │   Ollama/LM     │  │   Claude, etc.) │
-│                 │  │   Studio)       │  │                 │
-│  Phase 1: MVP   │  │  Phase 2        │  │  Phase 3        │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
-```
-
-**Phase 1 - Self-hosted models:**
-- Text Generation: `microsoft/Phi-3.5-mini-instruct` (3.8B params, strong instruction following)
-- Embeddings: `sentence-transformers/all-MiniLM-L6-v2` (384 dims, fast)
-- Libraries: `transformers`, `sentence-transformers`, `torch`
-- Background Tasks: FastAPI BackgroundTasks (simple, no Redis needed)
-
-**Phase 2 - Local model servers:**
-- Support Ollama API (`http://localhost:11434`)
-- Support LM Studio API (`http://localhost:1234`)
-- Same interface, just different backend
-
-**Phase 3 - Cloud providers (optional):**
-- OpenAI API
-- Anthropic Claude API
-- Configurable via environment variables
-
-**Infrastructure:**
-- Docker & Docker Compose (local development)
-- Single-user, no authentication
-
-### 4.3 Backend Service Breakdown
-
-```
-backend/
-├── app/
-│   ├── main.py                 # FastAPI app initialization
-│   ├── config.py               # Settings and configuration
-│   ├── database.py             # SQLAlchemy setup
-│   ├── api/
-│   │   ├── routes/
-│   │   │   ├── projects.py     # Project CRUD
-│   │   │   ├── analysis.py     # Trigger/status analysis
-│   │   │   ├── reports.py      # Report generation/retrieval
-│   │   │   ├── diagrams.py     # Diagram generation
-│   │   │   ├── chat.py         # Q&A endpoints
-│   │   │   ├── search.py       # Code search
-│   │   │   └── settings.py     # LLM provider settings
-│   │   └── deps.py             # Dependency injection
-│   ├── services/
-│   │   ├── git_service.py      # Clone, pull, file operations
-│   │   ├── llm/                # LLM Provider Abstraction
-│   │   │   ├── base.py         # Abstract LLMProvider class
-│   │   │   ├── local_provider.py    # HuggingFace transformers
-│   │   │   ├── ollama_provider.py   # Ollama API client
-│   │   │   ├── lmstudio_provider.py # LM Studio API client
-│   │   │   ├── cloud_provider.py    # OpenAI/Claude (future)
-│   │   │   └── factory.py      # Provider factory
-│   │   ├── analyzer/
-│   │   │   ├── base.py         # Abstract analyzer
-│   │   │   ├── python_analyzer.py
-│   │   │   ├── javascript_analyzer.py
-│   │   │   └── generic_analyzer.py
-│   │   ├── report_generator.py
-│   │   ├── diagram_generator.py
-│   │   ├── embedding_service.py
-│   │   ├── vector_service.py   # Qdrant operations
-│   │   └── chat_service.py     # RAG implementation
-│   ├── models/                 # SQLAlchemy models
-│   ├── schemas/                # Pydantic schemas
-│   └── tasks/                  # Background tasks
-├── tests/
-├── requirements.txt
-└── Dockerfile
-```
-
-### 4.4 Frontend Structure
-
-```
-frontend/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx            # Landing/Dashboard
-│   │   ├── projects/
-│   │   │   ├── page.tsx        # Project list
-│   │   │   ├── [id]/
-│   │   │   │   ├── page.tsx    # Project overview
-│   │   │   │   ├── reports/
-│   │   │   │   │   └── page.tsx
-│   │   │   │   ├── diagrams/
-│   │   │   │   │   └── page.tsx
-│   │   │   │   ├── chat/
-│   │   │   │   │   └── page.tsx
-│   │   │   │   └── files/
-│   │   │   │       └── page.tsx
-│   │   │   └── new/
-│   │   │       └── page.tsx
-│   │   └── settings/
-│   │       └── page.tsx        # LLM provider configuration
-│   ├── components/
-│   │   ├── ui/                 # Base components (shadcn/ui)
-│   │   ├── diagrams/           # Mermaid wrappers
-│   │   ├── chat/               # Chat interface
-│   │   ├── reports/            # Report viewers
-│   │   └── files/              # File tree, code viewer
-│   ├── lib/
-│   │   ├── api.ts              # API client
-│   │   └── utils.ts
-│   └── hooks/
-├── public/
-├── package.json
-├── tailwind.config.js
-├── tsconfig.json
-├── next.config.js
-└── Dockerfile
+# Tests
+cd backend && pytest
+cd frontend && npm test
 ```
 
 ---
 
-## 5. Data Models
+## Critical Workflows
 
-### 5.1 Core Entities
+### GitHub Issue Validation (REQUIRED)
 
-**Project**
-```
-- id: UUID
-- name: string
-- description: string
-- git_url: string
-- branch: string
-- status: enum (pending, analyzing, ready, failed)
-- created_at: datetime
-- updated_at: datetime
-- settings: JSON (ignore patterns, analysis options)
-```
+When implementing any GitHub issue:
 
-**Analysis**
-```
-- id: UUID
-- project_id: FK
-- status: enum (queued, running, completed, failed)
-- started_at: datetime
-- completed_at: datetime
-- stats: JSON (files analyzed, LOC, etc.)
-- error: string (if failed)
-```
+1. **Before starting:** `gh issue view <number>` - understand all acceptance criteria
+2. **During:** Work through each criterion systematically
+3. **After completion:** Validate all work against the issue:
+   - `gh issue edit <number> --body` to check off completed items `[x]`
+   - Add completion summary with metrics (coverage %, test counts)
+4. **Always verify:** Every checkbox must be validated before closing
 
-**Report**
-```
-- id: UUID
-- project_id: FK
-- analysis_id: FK
-- type: enum (summary, architecture, developer, dependency)
-- content: JSON/Markdown
-- created_at: datetime
+### Git Branching (REQUIRED)
+
+Branch protection is enabled on `main`. All changes require pull requests.
+
+```bash
+# Start new work
+git checkout main && git pull
+git checkout -b feature/<issue-number>-<description>
+
+# Examples
+feature/56-function-extraction
+feature/dependency-dashboard
+fix/diagram-caching
 ```
 
-**Diagram**
-```
-- id: UUID
-- project_id: FK
-- type: enum (architecture, dependency, class, sequence, erd)
-- mermaid_code: text
-- metadata: JSON
-- created_at: datetime
+**During development:**
+- Commit frequently with clear messages
+- Push regularly: `git push -u origin <branch-name>`
+
+**When complete:**
+- Ensure tests pass and build succeeds
+- Create PR: `gh pr create --base main --head <branch-name>`
+- Merge with squash: `gh pr merge --squash`
+
+**Never:**
+- Push directly to `main`
+- Use `git push --force` on `main`
+- Merge without a pull request
+
+### E2E Testing with MCP Playwright
+
+When using MCP Playwright tools:
+
+1. **Never use xvfb** - Headless Chromium in WSL cannot render visuals
+2. **Use YAML accessibility snapshots** - Call `browser_snapshot()` WITHOUT filename
+3. **Validate via YAML structure** - The accessibility tree provides complete validation
+4. **Screenshots will be blank in WSL** - This is expected behavior
+
+---
+
+## Code Quality Standards
+
+### Python (Backend)
+
+```python
+# Imports: standard lib, third-party, local (with blank lines between)
+import os
+from typing import Optional
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models.project import Project
 ```
 
-**CodeChunk** (for vector DB)
-```
-- id: UUID
-- project_id: FK
-- file_path: string
-- chunk_type: enum (file, function, class, block)
-- content: text
-- start_line: int
-- end_line: int
-- language: string
-- embedding: vector[1536]
-- metadata: JSON
+- Use type hints for all function signatures
+- Use Pydantic models for request/response schemas
+- Use dependency injection for database sessions
+- Async functions for I/O-bound operations
+- Handle errors with HTTPException and appropriate status codes
+
+### TypeScript (Frontend)
+
+```typescript
+// Imports: react, third-party, local components, local utils
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { api } from '@/lib/api';
 ```
 
-**ChatSession**
-```
-- id: UUID
-- project_id: FK
-- created_at: datetime
+- Use TypeScript strict mode
+- Define interfaces for API responses
+- Use React Query for data fetching
+- Use Zustand for global state
+- Tailwind for styling (no inline styles)
+
+### Error Handling
+
+```python
+# Backend: Use HTTPException with clear messages
+from fastapi import HTTPException
+
+if not project:
+    raise HTTPException(status_code=404, detail="Project not found")
 ```
 
-**ChatMessage**
+```typescript
+// Frontend: Handle loading and error states
+const { data, isLoading, error } = useQuery(['project', id], fetchProject);
+if (isLoading) return <Skeleton />;
+if (error) return <ErrorMessage error={error} />;
 ```
-- id: UUID
-- session_id: FK
-- role: enum (user, assistant)
-- content: text
-- sources: JSON (file references)
-- created_at: datetime
+
+### Testing Requirements
+
+**Backend (pytest):**
+- Unit tests for services in `tests/unit/`
+- Integration tests for API routes in `tests/integration/`
+- Use fixtures from `conftest.py`
+- Mock external services (Git, LLM, Qdrant)
+- Target: 80%+ coverage
+
+**Frontend (Jest + RTL):**
+- Component tests with React Testing Library
+- Test user interactions, not implementation
+- Mock API calls with MSW or jest mocks
+
+```bash
+# Run with coverage
+cd backend && pytest --cov=app --cov-report=term
+cd frontend && npm test -- --coverage
 ```
 
 ---
 
-## 6. API Endpoints
+## Architecture Patterns
 
-### Projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects` - List projects
-- `GET /api/projects/{id}` - Get project details
-- `PUT /api/projects/{id}` - Update project
-- `DELETE /api/projects/{id}` - Delete project
-- `POST /api/projects/{id}/sync` - Trigger git sync
+### Backend Service Layer
 
-### Analysis
-- `POST /api/projects/{id}/analyze` - Start analysis
-- `GET /api/projects/{id}/analysis` - Get latest analysis
-- `GET /api/projects/{id}/analysis/{analysis_id}` - Get specific analysis
-
-### Reports
-- `GET /api/projects/{id}/reports` - List reports
-- `GET /api/projects/{id}/reports/{type}` - Get specific report
-- `POST /api/projects/{id}/reports/generate` - Regenerate reports
-
-### Diagrams
-- `GET /api/projects/{id}/diagrams` - List diagrams
-- `GET /api/projects/{id}/diagrams/{type}` - Get specific diagram
-- `POST /api/projects/{id}/diagrams/generate` - Regenerate diagrams
-
-### Search & Chat
-- `POST /api/projects/{id}/search` - Semantic code search
-- `POST /api/projects/{id}/chat` - Send chat message
-- `GET /api/projects/{id}/chat/sessions` - List chat sessions
-- `GET /api/projects/{id}/chat/sessions/{session_id}` - Get session history
-
-### Files
-- `GET /api/projects/{id}/files` - Get file tree
-- `GET /api/projects/{id}/files/{path}` - Get file content
-
-### Settings (LLM Provider)
-- `GET /api/settings` - Get current settings (provider, model, etc.)
-- `PUT /api/settings` - Update settings
-- `GET /api/settings/providers` - List available providers
-- `GET /api/settings/models` - List available models for current provider
-- `POST /api/settings/test` - Test LLM connection
-
----
-
-## 7. Key User Flows
-
-### Flow 1: New Project Analysis
-1. User enters git URL (or uploads local repo)
-2. System clones repository
-3. System runs analysis (background job)
-4. User sees progress indicator
-5. Analysis completes → Reports and diagrams generated
-6. Code indexed into vector DB
-7. User can view reports, diagrams, and start chatting
-
-### Flow 2: Ask a Question
-1. User types natural language question
-2. System generates embedding for question
-3. System searches Qdrant for relevant code chunks
-4. System constructs prompt with context
-5. LLM generates answer with code references
-6. Response displayed with clickable file links
-
-### Flow 3: Explore Diagram
-1. User navigates to diagrams section
-2. User selects diagram type (architecture, dependencies, etc.)
-3. Mermaid diagram rendered
-4. User can zoom, pan, and click nodes
-5. Clicking node shows related code/details
-
----
-
-## 8. Non-Functional Requirements
-
-### Performance
-- Repository cloning: < 2 minutes for repos < 500MB
-- Analysis: < 5 minutes for repos < 10k files
-- Search response: < 2 seconds
-- Chat response: Depends on local hardware (5-30 seconds for small models)
-
-### Scalability
-- Support repos up to 1GB / 100k files
-- Single-user local deployment (no multi-tenancy needed)
-
-### Security (Local Deployment)
-- No authentication required (local-only, single user)
-- Input validation on all endpoints
-- Never execute analyzed code
-- Git credentials handled via user's local git config
-
-### Reliability
-- Background job retry on failure
-- Graceful degradation if LLM unavailable
-- SQLite database with file-based backups
-
----
-
-## 9. Implementation Phases
-
-### Phase 1: Foundation (MVP)
-- [ ] Project setup (monorepo structure with Docker Compose)
-- [ ] Basic FastAPI backend with project CRUD
-- [ ] SQLite database setup with SQLAlchemy
-- [ ] Git cloning service (local path or URL)
-- [ ] Basic file tree analysis
-- [ ] Simple Next.js frontend with project list/dashboard
-- [ ] **LLM Provider abstraction** with LocalProvider (HuggingFace small model)
-- [ ] Basic Python analyzer (using Tree-sitter)
-
-### Phase 2: Core Analysis & Reports
-- [ ] JavaScript/TypeScript analyzer (Tree-sitter)
-- [ ] Dependency graph extraction (imports/exports)
-- [ ] Basic report generation (markdown)
-- [ ] Mermaid diagram generation (file structure, dependencies)
-- [ ] Report viewing UI with Mermaid rendering
-
-### Phase 3: Vector Search & Embeddings
-- [ ] Qdrant integration (Docker container)
-- [ ] Code chunking strategy (file/function/class level)
-- [ ] Local embedding pipeline (sentence-transformers)
-- [ ] Semantic search API
-- [ ] Search UI with code highlighting
-
-### Phase 4: AI Chat (RAG)
-- [ ] RAG implementation with retrieved context
-- [ ] Chat API endpoints (streaming optional)
-- [ ] Chat UI with conversation history
-- [ ] Source citations with file links
-
-### Phase 5: LLM Provider Expansion
-- [ ] OllamaProvider implementation
-- [ ] LM Studio provider implementation
-- [ ] Provider switching via settings UI
-- [ ] Model selection UI
-
-### Phase 6: Polish & Enhancements
-- [ ] Incremental re-analysis (changed files only)
-- [ ] Additional diagram types (class, sequence)
-- [ ] Export functionality (PDF/HTML reports)
-- [ ] Performance optimization
-- [ ] CloudProvider (OpenAI/Claude) - optional
-
----
-
-## 10. Decisions Made
-
-| Question | Decision |
-|----------|----------|
-| **LLM Provider** | Self-hosted first → Ollama/LM Studio → Cloud APIs (optional) |
-| **Text Generation Model** | `microsoft/Phi-3.5-mini-instruct` (3.8B params) |
-| **Embedding Model** | `sentence-transformers/all-MiniLM-L6-v2` (384 dims) |
-| **Authentication** | None - local single-user deployment |
-| **Hosting** | Local Docker Compose only |
-| **Languages** | Python + JavaScript/TypeScript analyzers |
-| **Database** | SQLite (simple, file-based) |
-| **Background Tasks** | FastAPI BackgroundTasks (no Redis/Celery) |
-
----
-
-## 11. Success Metrics
-
-- Time to first insight: < 15 minutes from URL to answers
-- Chat accuracy: 80%+ relevant responses
-- User onboarding: < 5 minutes to analyze first repo
-- Report usefulness: 4+/5 user rating
-
----
-
-## 12. Risks & Mitigations
-
-| Risk | Mitigation |
-|------|------------|
-| Large repos overwhelm system | Size limits, incremental processing, .gitignore respect |
-| Local LLM quality insufficient | Design provider abstraction to easily switch to better models |
-| Slow local inference | Use smaller models, cache embeddings, async processing |
-| Poor analysis accuracy | Language-specific Tree-sitter analyzers, iterative improvement |
-| Hardware requirements too high | Start with smallest viable models, GPU optional |
-
----
-
-## 13. Files to Create (Phase 1 MVP)
-
-### Root
 ```
-/docker-compose.yml          # Backend, Frontend, Qdrant services
-/.gitignore
-/.env.example                # LLM_PROVIDER, MODEL_NAME, etc.
-/README.md
+API Route → Service → Repository/External Service
+     ↓          ↓              ↓
+  Schemas    Business      Database/
+  (Pydantic)   Logic       Qdrant/Git
 ```
 
-### Backend
-```
-/backend/
-├── requirements.txt         # fastapi, uvicorn, sqlalchemy, tree-sitter, etc.
-├── Dockerfile
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app, CORS, routes
-│   ├── config.py            # Pydantic Settings
-│   ├── database.py          # SQLAlchemy engine, session
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── project.py       # Project, Analysis, Report models
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── project.py       # Pydantic request/response schemas
-│   ├── api/
-│   │   ├── __init__.py
-│   │   ├── deps.py
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── projects.py
-│   │       └── settings.py
-│   └── services/
-│       ├── __init__.py
-│       ├── git_service.py
-│       └── llm/
-│           ├── __init__.py
-│           ├── base.py
-│           └── local_provider.py
-```
+- Routes handle HTTP concerns only
+- Services contain business logic
+- Use dependency injection for testability
 
-### Frontend
+### Key Services
+
+| Service | Purpose |
+|---------|---------|
+| `git_service.py` | Clone repos, manage files |
+| `analysis_service.py` | Orchestrate code analysis |
+| `chunking_service.py` | Split code for embeddings |
+| `vector_service.py` | Qdrant operations |
+| `rag_service.py` | RAG pipeline for chat |
+| `llm/` | LLM provider abstraction |
+
+### Frontend Structure
+
 ```
-/frontend/
-├── package.json
-├── Dockerfile
-├── next.config.js
-├── tailwind.config.js
-├── tsconfig.json
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   ├── projects/
-│   │   │   ├── page.tsx
-│   │   │   └── new/page.tsx
-│   │   └── settings/page.tsx
-│   ├── components/
-│   │   └── ui/              # Button, Card, Input (shadcn/ui)
-│   └── lib/
-│       └── api.ts
+src/app/           → Next.js App Router pages
+src/components/ui/ → Reusable UI components (shadcn)
+src/components/    → Feature-specific components
+src/lib/api.ts     → API client
+src/hooks/         → Custom React hooks
 ```
 
 ---
 
-## 14. Verification Plan
+## Common Patterns
 
-### Automated Testing
-- **Backend:** pytest with test fixtures for small repos
-- **Frontend:** Jest + React Testing Library for components
-- **API:** pytest-asyncio for endpoint testing
+### Adding a New API Endpoint
 
-### Manual Testing Checklist
-1. **Project Creation:**
-   - Add a project via local path
-   - Add a project via git URL
-   - Verify .gitignore patterns respected
+1. Define Pydantic schemas in `backend/app/schemas/`
+2. Create route in `backend/app/api/routes/`
+3. Register route in `backend/app/main.py`
+4. Add service logic in `backend/app/services/`
+5. Write tests in `backend/tests/`
 
-2. **Analysis:**
-   - Trigger analysis on small Python project
-   - Verify file tree extracted correctly
-   - Check analysis status updates in UI
+### Adding a New Frontend Page
 
-3. **Reports & Diagrams:**
-   - View generated architecture report
-   - Render Mermaid dependency diagram
-   - Verify diagrams are interactive
+1. Create page in `frontend/src/app/<route>/page.tsx`
+2. Add API types in `frontend/src/lib/api.ts`
+3. Create components in `frontend/src/components/`
+4. Add React Query hooks if needed
 
-4. **Search & Chat:**
-   - Search for a function name
-   - Ask "How does X work?"
-   - Verify code snippets in response have correct file links
+### LLM Provider Pattern
 
-5. **LLM Provider:**
-   - Test with local small model
-   - Switch to Ollama (if installed)
-   - Verify settings persist
+All LLM interactions go through the provider abstraction:
 
-### Test Repositories
-- Small: This project itself (CodeCompass)
-- Medium: A real open-source project (e.g., FastAPI repo)
-- Edge case: Monorepo with multiple languages
+```python
+from app.services.llm.factory import get_llm_provider
+
+provider = get_llm_provider()
+response = await provider.generate(prompt)
+```
+
+---
+
+## What NOT to Do
+
+- Don't commit `.env` files or secrets
+- Don't skip tests for "simple" changes
+- Don't push directly to main
+- Don't add features beyond what's requested
+- Don't create documentation files unless asked
+- Don't over-engineer - solve the current problem simply
+
+---
+
+## Documentation
+
+For full project documentation, see:
+- **README.md** - Project overview, setup, architecture
+- **backend/README.md** - Backend API documentation
+- **frontend/README.md** - Frontend documentation
