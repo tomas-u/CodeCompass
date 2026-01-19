@@ -1,8 +1,8 @@
 """Report database model."""
 
-from sqlalchemy import Column, String, DateTime, JSON, ForeignKey, Text
+from sqlalchemy import Column, String, DateTime, JSON, ForeignKey, Text, Integer
 from sqlalchemy.sql import func
-from datetime import datetime
+
 from app.database import Base
 
 
@@ -34,7 +34,7 @@ class Report(Base):
 
     # Generation info
     model_used = Column(String, nullable=True)  # LLM model used
-    generation_time_ms = Column(String, nullable=True)  # Time taken to generate
+    generation_time_ms = Column(Integer, nullable=True)  # Time taken to generate in ms
 
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())

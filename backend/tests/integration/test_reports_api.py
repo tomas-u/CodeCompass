@@ -1,11 +1,9 @@
 """Integration tests for Reports API endpoints."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi.testclient import TestClient
+from unittest.mock import MagicMock, patch
 
 from app.schemas.project import ProjectStatus
-from app.schemas.report import ReportType
 from app.models.report import Report
 
 
@@ -60,7 +58,7 @@ class TestListReportsAPI:
             sections=[],
             report_metadata={},
             model_used="test-model",
-            generation_time_ms="100",
+            generation_time_ms=100,
         )
         test_db.add(report)
         test_db.commit()
@@ -109,7 +107,7 @@ class TestGetReportAPI:
             sections=[{"id": "summary", "title": "Summary", "content": "This is the content."}],
             report_metadata={"languages": ["Python"]},
             model_used="test-model",
-            generation_time_ms="100",
+            generation_time_ms=100,
         )
         test_db.add(report)
         test_db.commit()
@@ -152,7 +150,7 @@ class TestGetReportAPI:
             sections=[],
             report_metadata={},
             model_used="test-model",
-            generation_time_ms="500",
+            generation_time_ms=500,
         )
         test_db.add(report)
         test_db.commit()
@@ -224,9 +222,9 @@ class TestGenerateReportsAPI:
         with patch("app.api.routes.reports.ReportGenerator") as MockGenerator:
             mock_generator = MagicMock()
             mock_reports = [
-                MagicMock(id="summary-id", type="summary", generation_time_ms="100"),
-                MagicMock(id="arch-id", type="architecture", generation_time_ms="200"),
-                MagicMock(id="deps-id", type="dependencies", generation_time_ms="150"),
+                MagicMock(id="summary-id", type="summary", generation_time_ms=100),
+                MagicMock(id="arch-id", type="architecture", generation_time_ms=200),
+                MagicMock(id="deps-id", type="dependencies", generation_time_ms=150),
             ]
 
             async def mock_generate_all(*args, **kwargs):
@@ -297,7 +295,7 @@ class TestDeleteReportAPI:
             sections=[],
             report_metadata={},
             model_used="test-model",
-            generation_time_ms="100",
+            generation_time_ms=100,
         )
         test_db.add(report)
         test_db.commit()
@@ -331,7 +329,7 @@ class TestReportResponseFormat:
             ],
             report_metadata={"languages": ["Python"], "frameworks": ["fastapi"]},
             model_used="gpt-4",
-            generation_time_ms="1500",
+            generation_time_ms=1500,
         )
         test_db.add(report)
         test_db.commit()
@@ -376,7 +374,7 @@ class TestReportResponseFormat:
             sections=[],
             report_metadata={},
             model_used="test-model",
-            generation_time_ms="100",
+            generation_time_ms=100,
         )
         test_db.add(report)
         test_db.commit()

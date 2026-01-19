@@ -1,9 +1,10 @@
 """Reports API endpoints."""
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from datetime import datetime
 from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Depends
 
 from sqlalchemy.orm import Session
 
@@ -166,7 +167,6 @@ async def generate_reports(
     project_id: str,
     report_type: Optional[ReportType] = None,
     force: bool = False,
-    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
 ):
     """

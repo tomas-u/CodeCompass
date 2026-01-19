@@ -3,14 +3,14 @@
 import logging
 import re
 import time
-from typing import Optional, List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from uuid import uuid4
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
 from app.models.report import Report
+from app.schemas.project import ProjectStatus
 from app.schemas.report import ReportType
 from app.services.llm import get_llm_provider, get_embedding_provider, get_vector_service
 from app.services.llm.base import ChatMessage
@@ -204,7 +204,7 @@ class ReportGenerator:
         if not project:
             raise ValueError(f"Project not found: {project_id}")
 
-        if project.status.value != "ready":
+        if project.status != ProjectStatus.ready:
             raise ValueError(f"Project is not ready for report generation: {project.status}")
 
         # Check for existing report
@@ -453,12 +453,12 @@ class ReportGenerator:
     async def _get_key_files(self, project_id: str) -> str:
         """Get key files from vector database."""
         try:
-            from app.models.code_chunk import CodeChunk
+            from app.models.code_chunk import CodeChunk, ChunkType
 
-            # Query for important files (main, app, index, etc.)
+            # Query for file-level chunks (ChunkType only has 'file' and 'segment')
             chunks = self.db.query(CodeChunk).filter(
                 CodeChunk.project_id == project_id,
-                CodeChunk.chunk_type.in_(["file", "function", "class"]),
+                CodeChunk.chunk_type == ChunkType.file,
             ).limit(10).all()
 
             if not chunks:
@@ -497,11 +497,20 @@ class ReportGenerator:
                 return "No relevant code found"
 
             # Format context
+            # Note: chunks from vector search include content, file_path, line_start, line_end
             context_parts = []
             for chunk in chunks:
-                context_parts.append(f"### `{chunk.file_path}` (lines {chunk.line_start}-{chunk.line_end})")
-                content = chunk.content[:500] + "..." if len(chunk.content) > 500 else chunk.content
-                context_parts.append(f"```\n{content}\n```\n")
+                file_path = getattr(chunk, 'file_path', '<unknown>')
+                line_start = getattr(chunk, 'line_start', '?')
+                line_end = getattr(chunk, 'line_end', '?')
+                content = getattr(chunk, 'content', None)
+
+                context_parts.append(f"### `{file_path}` (lines {line_start}-{line_end})")
+                if content:
+                    truncated = content[:500] + "..." if len(content) > 500 else content
+                    context_parts.append(f"```\n{truncated}\n```\n")
+                else:
+                    context_parts.append("```\n[Content not available]\n```\n")
 
             return "\n".join(context_parts)
         except Exception as e:
@@ -601,9 +610,9 @@ class ReportGenerator:
             existing.sections = sections
             existing.report_metadata = metadata
             existing.model_used = model_used
-            existing.generation_time_ms = str(generation_time_ms)
-            existing.updated_at = datetime.utcnow()
+            existing.generation_time_ms = generation_time_ms
             self.db.commit()
+            self.db.refresh(existing)
             return existing
         else:
             # Create new
@@ -616,10 +625,11 @@ class ReportGenerator:
                 sections=sections,
                 report_metadata=metadata,
                 model_used=model_used,
-                generation_time_ms=str(generation_time_ms),
+                generation_time_ms=generation_time_ms,
             )
             self.db.add(report)
             self.db.commit()
+            self.db.refresh(report)
             return report
 
     async def generate_all_reports(self, project_id: str, force: bool = False) -> List[Report]:

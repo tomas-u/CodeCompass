@@ -1,9 +1,7 @@
 """Unit tests for ReportGenerator service."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock
 
 from app.services.report_generator import ReportGenerator
 from app.schemas.report import ReportType

@@ -1,10 +1,11 @@
 """Code chunk database model for tracking indexed chunks."""
 
+import enum
+
 from sqlalchemy import Column, String, DateTime, Integer, Enum as SQLEnum
 from sqlalchemy.sql import func
-from datetime import datetime
+
 from app.database import Base
-import enum
 
 
 class ChunkType(str, enum.Enum):
