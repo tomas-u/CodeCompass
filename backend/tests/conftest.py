@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from app.database import Base, get_db
@@ -29,14 +30,13 @@ from tests.fixtures import (
 @pytest.fixture(scope="function")
 def test_db_engine():
     """Create in-memory SQLite database for testing."""
-    # Import models to register them with Base before creating tables
-    from app.models import project  # noqa: F401
-    from app.models import diagram  # noqa: F401
-    from app.models import chat  # noqa: F401
+    # Import all models to register them with Base before creating tables
+    from app import models  # noqa: F401
 
     engine = create_engine(
         "sqlite:///:memory:",
-        connect_args={"check_same_thread": False}
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,  # Ensures same connection is reused for in-memory SQLite
     )
     Base.metadata.create_all(bind=engine)
     yield engine

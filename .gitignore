@@ -60,7 +60,7 @@ frontend/playwright/.auth/
 *.pt
 *.pth
 *.onnx
-models/
+/models/
 
 # OS
 .DS_Store
@@ -78,3 +78,4 @@ data/
 
 # SQLite database
 backend/*.db
+test-results/

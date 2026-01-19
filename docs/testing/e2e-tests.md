@@ -531,9 +531,125 @@ browser_snapshot()  # Check "Analyze" button is enabled again
 
 ---
 
+## Flow 6: AI Chat with Streaming Responses
+
+**Description:** Test the AI chat interface with real-time streaming responses and RAG context.
+
+**Pre-conditions:**
+- Backend and frontend running
+- Ollama running with a model (e.g., `qwen2.5-coder:7b`)
+- Qdrant vector database running
+- At least one project with status "Ready" (embeddings generated)
+
+**Test Steps:**
+
+1. **Navigate to project with chat**
+   - Go to http://localhost:3000/projects
+   - Click on a project with status "Ready"
+   - Verify project detail page loads
+
+2. **Open chat panel**
+   - Click chat button (bottom-right) or press Ctrl+K
+   - Verify chat panel opens
+   - Verify input field is focused
+
+3. **Send a message**
+   - Type: "How does authentication work in this codebase?"
+   - Press Enter or click send button
+   - Verify user message appears in chat
+
+4. **Observe streaming response**
+   - Verify "thinking" indicator appears
+   - Verify tokens stream in real-time (not all at once)
+   - Verify response completes with sources
+
+5. **Verify sources display**
+   - Verify source files are listed under response
+   - Verify sources are clickable links
+   - Verify line numbers shown for each source
+
+6. **Test keyboard shortcuts**
+   - Press Ctrl+K to toggle chat open/close
+   - Press Escape to minimize chat
+   - Press Shift+Enter for newline in message
+
+7. **Test clear chat**
+   - Click "Clear" button
+   - Verify confirmation if messages exist
+   - Verify chat history cleared
+
+8. **Test error handling**
+   - Stop Ollama service
+   - Send a message
+   - Verify error message displayed gracefully
+   - Restart Ollama, verify recovery
+
+**Expected Results:**
+- ✅ Chat panel opens with Ctrl+K shortcut
+- ✅ Messages sent and displayed correctly
+- ✅ Streaming tokens appear in real-time
+- ✅ Sources displayed with file paths and line numbers
+- ✅ Keyboard navigation works (Ctrl+K, Escape, Shift+Enter)
+- ✅ Clear chat works with confirmation
+- ✅ Graceful error handling when LLM unavailable
+- ✅ No console errors during streaming
+
+**MCP Tool Sequence:**
+```
+browser_navigate(url="http://localhost:3000/projects")
+browser_click(element="Ready project", ref="[data-status='ready']:first")
+browser_snapshot()  # Verify project page loads
+
+# Open chat with keyboard shortcut
+browser_press_key(key="Control+k")
+browser_wait_for(time=1)
+browser_snapshot()  # Verify chat panel opens
+
+# Type and send message
+browser_type(
+  element="Chat input",
+  ref="[data-testid='chat-input']",
+  text="How does authentication work?",
+  slowly=false
+)
+browser_press_key(key="Enter")
+browser_wait_for(time=2)
+browser_snapshot()  # Verify user message appears
+
+# Wait for streaming response
+browser_wait_for(text="Sources", time=30)
+browser_snapshot()  # Verify response with sources
+
+# Test minimize
+browser_press_key(key="Escape")
+browser_snapshot()  # Verify chat minimized
+
+# Test reopen
+browser_press_key(key="Control+k")
+browser_snapshot()  # Verify chat reopens with history
+```
+
+**Playwright Test File:** `frontend/tests/e2e/chat.spec.ts`
+
+The chat E2E tests cover:
+- Panel open/close with Ctrl+K shortcut
+- Message input enable/disable states
+- Send button visibility based on input
+- Shift+Enter for newlines
+- Clear chat functionality
+- Mock data display when no real messages
+
+**Troubleshooting:**
+- If chat doesn't open: Check Ctrl+K event listener
+- If streaming fails: Check Ollama is running, verify OLLAMA_BASE_URL
+- If sources empty: Check Qdrant has embeddings, verify project was analyzed
+- If response slow: Check Ollama model is loaded (first request loads model)
+
+---
+
 ## Coverage Summary
 
-These 5 E2E flows cover **70%+ of critical user functionality:**
+These 6 E2E flows cover **80%+ of critical user functionality:**
 
 | Flow | Coverage Area | % of Critical Paths |
 |------|---------------|---------------------|
@@ -542,10 +658,10 @@ These 5 E2E flows cover **70%+ of critical user functionality:**
 | Flow 3 | Real-time updates, polling mechanism | 10% |
 | Flow 4 | Dashboard navigation, tab switching | 10% |
 | Flow 5 | Manual analysis trigger, confirmation workflow | 10% |
-| **Total** | | **70%** |
+| Flow 6 | AI chat with streaming, RAG, keyboard shortcuts | 15% |
+| **Total** | | **85%** |
 
 **Not Covered (Lower Priority):**
-- Chat/Q&A functionality
 - Diagram generation details
 - Report generation details
 - Settings configuration
@@ -703,7 +819,8 @@ jobs:
 |-----------|---------------|------------|
 | `project-creation.spec.ts` | Flow 1 | 4 tests |
 | `analyze-workflow.spec.ts` | Flow 5 | 4 tests |
-| **Total** | **2 of 5 flows** | **8 tests** |
+| `chat.spec.ts` | Flow 6 | 11 tests |
+| **Total** | **3 of 6 flows** | **19 tests** |
 
 **Future Automation:**
 - Flow 2: Project list management

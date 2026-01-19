@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { mockFileTree, mockFileContent } from '@/lib/mock-data';
+import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
+import { useAppStore } from '@/lib/store';
 
 interface FileNode {
   name: string;
@@ -111,8 +114,15 @@ function TreeNode({ node, depth, onSelect, selectedFile }: TreeNodeProps) {
 }
 
 export function FilesTab() {
+  const { currentProjectId, projects } = useAppStore();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const currentProject = projects.find(p => p.id === currentProjectId);
+
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
 
   const handleFileSelect = (node: FileNode) => {
     if (node.type === 'file') {
@@ -120,8 +130,18 @@ export function FilesTab() {
     }
   };
 
+  // Show loading state while analyzing
+  if (isAnalyzing) {
+    return (
+      <div className="p-6">
+        <AnalysisInProgress status={currentProject.status} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 h-full">
+      <MockDataIndicator label="All Files Mock Data" variant="overlay">
       <div className="grid grid-cols-[350px_1fr] gap-6 h-[calc(100vh-12rem)]">
         {/* File Tree */}
         <Card className="flex flex-col">
@@ -190,6 +210,7 @@ export function FilesTab() {
           )}
         </Card>
       </div>
+      </MockDataIndicator>
     </div>
   );
 }

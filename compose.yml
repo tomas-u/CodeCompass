@@ -1,0 +1,74 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data               # SQLite + cloned repos
+      - ./backend/app:/app/app         # Dev: hot reload (source code only)
+    environment:
+      - DATABASE_URL=sqlite:///data/codecompass.db
+      - DATA_DIR=/app/data
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - DEBUG_ANALYSIS_DELAY=0  # Set to 0 to disable delays
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=qwen2.5:0.5b
+      - LLM_BASE_URL=http://ollama:11434
+      - EMBEDDING_BASE_URL=http://embedding:11435
+      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+    depends_on:
+      - qdrant
+      - ollama
+      - embedding
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src        # Dev: hot reload for source
+      - ./frontend/public:/app/public  # Dev: hot reload for static
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - WATCHPACK_POLLING=true         # Enable polling for file changes in Docker
+    depends_on:
+      - backend
+
+  qdrant:
+    image: docker.io/qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    # Uncomment for GPU support:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  embedding:
+    build: ./services/embedding
+    ports:
+      - "11435:11435"
+    volumes:
+      - embedding_models:/app/models
+    environment:
+      - MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+
+volumes:
+  qdrant_data:
+  ollama_models:
+  embedding_models:

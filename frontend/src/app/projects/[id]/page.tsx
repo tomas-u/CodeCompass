@@ -22,7 +22,7 @@ import { useAppStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/api-error';
 import { ErrorMessage } from '@/components/ui/error-message';
-import { FullPageLoading } from '@/components/ui/loading-skeleton';
+import { ProjectPageSkeleton } from '@/components/ui/loading-skeleton';
 import { useProjectStatus } from '@/hooks/useProjectStatus';
 import type { Project } from '@/types/api';
 
@@ -31,42 +31,48 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const projectId = params.id as string;
 
-  const { setCurrentProject, currentProjectId } = useAppStore();
-  const [project, setProject] = useState<Project | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { setCurrentProject, projects } = useAppStore();
+
+  // Try to get initial project data from store (for instant header rendering)
+  const storeProject = projects.find(p => p.id === projectId);
+  const initialProject: Project | null = storeProject
+    ? { ...storeProject, updated_at: storeProject.created_at }
+    : null;
+
+  const [project, setProject] = useState<Project | null>(initialProject);
+  const [isLoading, setIsLoading] = useState(!initialProject); // Only show skeleton if no store data
   const [error, setError] = useState<string | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState<number | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  // Fetch project data
+  // Set as current project on mount (separate effect to avoid render-time updates)
+  useEffect(() => {
+    setCurrentProject(projectId);
+  }, [projectId, setCurrentProject]);
+
+  // Fetch fresh project data (always, to ensure we have latest)
   useEffect(() => {
     const fetchProject = async () => {
-      setIsLoading(true);
       setError(null);
 
       try {
         const data = await api.getProject(projectId);
         setProject(data);
-
-        // Set as current project in store
-        if (currentProjectId !== projectId) {
-          setCurrentProject(projectId);
-        }
+        setIsLoading(false);
       } catch (err) {
         setError(getErrorMessage(err));
-      } finally {
         setIsLoading(false);
       }
     };
 
     fetchProject();
-  }, [projectId, setCurrentProject, currentProjectId]);
+  }, [projectId]);
 
   // Poll project status when project is being analyzed
   const activeStates = ['analyzing', 'scanning', 'cloning', 'pending'];
-  const shouldPoll = project && activeStates.includes(project.status);
+  const shouldPoll = project ? activeStates.includes(project.status) : false;
 
   useProjectStatus({
     projectId,
@@ -74,22 +80,20 @@ export default function ProjectDetailPage() {
       // Merge updated fields into current project state
       setProject((prev) => {
         if (!prev) return prev;
-        const updated = { ...prev, ...updatedProject };
-
-        // Also update the project in the Zustand store to keep list in sync
-        const { projects, setProjects } = useAppStore.getState();
-        const updatedProjects = projects.map((p) =>
-          p.id === projectId ? updated : p
-        );
-        setProjects(updatedProjects);
-
-        return updated;
+        return { ...prev, ...updatedProject };
       });
+
+      // Update the project in the Zustand store separately (not inside setState callback)
+      const { projects, setProjects } = useAppStore.getState();
+      const updatedProjects = projects.map((p) =>
+        p.id === projectId ? { ...p, ...updatedProject } : p
+      );
+      setProjects(updatedProjects);
     },
     onAnalysisUpdate: (analysis) => {
       // Update progress percentage if available
-      if (analysis.progress !== undefined) {
-        setAnalysisProgress(analysis.progress);
+      if (analysis.progress?.overall_percent !== undefined) {
+        setAnalysisProgress(analysis.progress.overall_percent);
       }
     },
     onError: (errorMessage) => {
@@ -135,11 +139,11 @@ export default function ProjectDetailPage() {
   // Check if analysis can be started
   const canStartAnalysis = project && !activeStates.includes(project.status);
 
-  // Loading state
+  // Loading state - show skeleton that matches the page structure
   if (isLoading) {
     return (
       <MainLayout>
-        <FullPageLoading message="Loading project..." />
+        <ProjectPageSkeleton />
       </MainLayout>
     );
   }

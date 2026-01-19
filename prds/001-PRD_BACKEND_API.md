@@ -3,11 +3,11 @@
 ## Document Info
 | Field | Value |
 |-------|-------|
-| **Version** | 1.0 |
-| **Status** | Draft |
+| **Version** | 1.1 |
+| **Status** | Approved |
 | **Author** | Product Manager |
-| **Last Updated** | 2026-01-10 |
-| **Related Documents** | 000-PRD_LANDING_PAGE.md |
+| **Last Updated** | 2026-01-19 |
+| **Related Documents** | 000-PRD_LANDING_PAGE.md, 004-PRD-TEST_PLAN.md |
 
 ---
 
@@ -24,8 +24,24 @@ This document specifies the backend API requirements for CodeCompass. The backen
 | **Validation** | Pydantic v2 |
 | **Background Tasks** | FastAPI BackgroundTasks |
 | **Code Parsing** | Tree-sitter |
-| **LLM (Phase 1)** | HuggingFace Transformers (Phi-3.5-mini) |
+| **LLM Provider** | Ollama (default), with provider abstraction |
+| **LLM Model** | qwen2.5-coder:7b (configurable) |
 | **Embeddings** | sentence-transformers (all-MiniLM-L6-v2) |
+| **Streaming** | Server-Sent Events (SSE) |
+
+### Implementation Status
+| Feature | Status |
+|---------|--------|
+| Project CRUD | ✅ Implemented |
+| Git Cloning | ✅ Implemented |
+| Tree-sitter Analysis | ✅ Implemented |
+| Status Polling | ✅ Implemented |
+| Vector Search (Qdrant) | ✅ Implemented |
+| Embedding Generation | ✅ Implemented |
+| RAG Pipeline | ✅ Implemented |
+| Streaming Chat (SSE) | ✅ Implemented |
+| Report Generation | 🔄 Planned |
+| Diagram Generation | 🔄 Planned |
 
 ---
 
@@ -886,24 +902,42 @@ Test LLM connection.
 | Method | Description |
 |--------|-------------|
 | `chat(project_id, message, session_id)` | Process chat message |
-| `stream_chat(...)` | Streaming response |
+| `stream_chat(...)` | Streaming response via SSE |
 | `get_context(query, project_id)` | RAG context retrieval |
 | `format_prompt(query, context)` | Build LLM prompt |
 
-#### VectorService
+#### RAGService ✅ Implemented
 | Method | Description |
 |--------|-------------|
-| `index_project(project_id)` | Create embeddings for project |
-| `search(query, project_id, filters)` | Semantic search |
-| `delete_project(project_id)` | Remove project embeddings |
-| `chunk_code(file_content)` | Split code into chunks |
+| `query(project_id, question)` | Full RAG pipeline: retrieve + generate |
+| `query_stream(project_id, question)` | Streaming RAG with SSE |
+| `_retrieve_context(project_id, question)` | Vector search for relevant chunks |
+| `_build_prompt(question, context)` | Format prompt with retrieved context |
+| `_generate_response(prompt)` | LLM generation |
 
-#### EmbeddingService
+#### ChunkingService ✅ Implemented
 | Method | Description |
 |--------|-------------|
-| `embed_text(text)` | Generate embedding vector |
-| `embed_batch(texts)` | Batch embedding |
-| `get_model_info()` | Model dimensions, etc. |
+| `chunk_file(file_path, content, language)` | Split file into semantic chunks |
+| `chunk_function(node, content)` | Extract function-level chunks |
+| `chunk_class(node, content)` | Extract class-level chunks |
+| `get_chunk_metadata(chunk)` | Extract metadata (imports, docstrings) |
+
+#### VectorService ✅ Implemented
+| Method | Description |
+|--------|-------------|
+| `index_project(project_id, chunks)` | Create embeddings and store in Qdrant |
+| `search(project_id, query, limit)` | Semantic search with filters |
+| `delete_project(project_id)` | Remove all project embeddings |
+| `get_collection_info(project_id)` | Get vector count and metadata |
+
+#### EmbeddingProvider ✅ Implemented
+| Method | Description |
+|--------|-------------|
+| `embed(text)` | Generate single embedding vector |
+| `embed_batch(texts)` | Batch embedding for efficiency |
+| `get_dimensions()` | Get embedding dimensions (384) |
+| `health_check()` | Verify embedding service is running |
 
 ---
 
@@ -1124,13 +1158,19 @@ class LLMProvider(ABC):
 
 ### 6.2 Provider Implementations
 
-| Provider | Phase | Configuration |
-|----------|-------|---------------|
-| `LocalProvider` | 1 (MVP) | HuggingFace model path |
-| `OllamaProvider` | 2 | Base URL, model name |
-| `LMStudioProvider` | 2 | Base URL, model name |
-| `OpenAIProvider` | 3 | API key, model name |
-| `AnthropicProvider` | 3 | API key, model name |
+| Provider | Status | Configuration |
+|----------|--------|---------------|
+| `OllamaProvider` | ✅ Implemented | Base URL, model name |
+| `LocalProvider` | 🔄 Planned | HuggingFace model path |
+| `LMStudioProvider` | 🔄 Planned | Base URL, model name |
+| `OpenAIProvider` | 🔄 Planned | API key, model name |
+| `AnthropicProvider` | 🔄 Planned | API key, model name |
+
+**Current Default Configuration:**
+```python
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "qwen2.5-coder:7b"
+```
 
 ### 6.3 Provider Factory
 ```python
@@ -1341,9 +1381,11 @@ class MockLLMProvider(LLMProvider):
 
 ## 12. Open Questions
 
-1. **WebSocket vs SSE for streaming:** SSE is simpler, WebSocket allows bidirectional - which is preferred?
+1. ~~**WebSocket vs SSE for streaming:** SSE is simpler, WebSocket allows bidirectional - which is preferred?~~
+   - **RESOLVED:** SSE implemented for streaming chat responses
 2. **Analysis cancellation:** Should we support cancelling mid-analysis? (adds complexity)
-3. **Embedding storage:** Store in SQLite or only in Qdrant? (redundancy vs simplicity)
+3. ~~**Embedding storage:** Store in SQLite or only in Qdrant? (redundancy vs simplicity)~~
+   - **RESOLVED:** Qdrant only for embeddings, metadata in SQLite
 4. **File watching:** Should we detect file changes for automatic re-analysis? (Phase 2?)
 
 ---

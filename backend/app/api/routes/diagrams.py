@@ -33,19 +33,27 @@ def get_project_or_404(project_id: str, db: Session) -> Project:
     return project
 
 
-def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
-    """Generate dependency diagram for a project."""
+def generate_dependency_diagram(
+    project: Project,
+    db: Session,
+    path: str = "",
+    depth: int = 1,
+    direction: str = "LR"
+) -> Diagram:
+    """Generate dependency diagram for a project.
+
+    Args:
+        project: The project to generate diagram for
+        db: Database session
+        path: Directory path to filter to (empty = root level for drill-down)
+        depth: How many directory levels to show
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
+    """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
             status_code=400,
             detail="Project has not been analyzed yet. Run analysis first."
         )
-
-    # Check if diagram already exists (to preserve ID on updates)
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.dependency
-    ).first()
 
     # Run analyzer to get dependency graph
     analyzer = GenericAnalyzer(
@@ -62,12 +70,44 @@ def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
             detail="Failed to build dependency graph"
         )
 
-    # Generate diagram
+    # Generate diagram - use path-based if path is specified or graph is large
     generator = DiagramGenerator()
-    diagram_data = generator.generate_dependency_diagram(
-        dep_graph,
-        title=f"Dependencies: {project.name}"
-    )
+    node_count = dep_graph.graph.number_of_nodes()
+
+    # Use drill-down mode for large graphs OR when path is specified
+    if path or node_count > generator.GROUPING_THRESHOLD:
+        diagram_data = generator.generate_dependency_diagram_for_path(
+            dep_graph,
+            base_path=path,
+            depth=depth,
+            title=f"Dependencies: {project.name}",
+            direction=direction
+        )
+    else:
+        # Small graph - show everything
+        diagram_data = generator.generate_dependency_diagram(
+            dep_graph,
+            title=f"Dependencies: {project.name}",
+            direction=direction
+        )
+
+    # For path-based queries, don't cache (dynamic content)
+    if path:
+        # Return a temporary diagram object without persisting
+        return Diagram(
+            id=diagram_data["id"],
+            project_id=project.id,
+            type=DiagramType.dependency,
+            title=diagram_data["title"],
+            mermaid_code=diagram_data["mermaid_code"],
+            diagram_metadata=diagram_data["metadata"]
+        )
+
+    # Check if diagram already exists (to preserve ID on updates)
+    existing = db.query(Diagram).filter(
+        Diagram.project_id == project.id,
+        Diagram.type == DiagramType.dependency
+    ).first()
 
     if existing:
         # Update existing diagram (preserve ID for consistency)
@@ -92,47 +132,45 @@ def generate_dependency_diagram(project: Project, db: Session) -> Diagram:
         return diagram
 
 
-def generate_directory_diagram(project: Project, db: Session) -> Diagram:
-    """Generate directory structure diagram for a project."""
+def generate_directory_diagram(
+    project: Project,
+    db: Session,
+    direction: str = "LR",
+    path: str = ""
+) -> Diagram:
+    """Generate directory structure diagram for a project.
+
+    Args:
+        project: The project to generate diagram for
+        db: Database session
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
+        path: Subdirectory to start from (enables drill-down navigation)
+    """
     if not project.local_path or not Path(project.local_path).exists():
         raise HTTPException(
             status_code=400,
             detail="Project has not been analyzed yet. Run analysis first."
         )
 
-    # Check if diagram already exists (to preserve ID on updates)
-    existing = db.query(Diagram).filter(
-        Diagram.project_id == project.id,
-        Diagram.type == DiagramType.directory
-    ).first()
-
     generator = DiagramGenerator()
     diagram_data = generator.generate_directory_diagram(
         repo_path=project.local_path,
-        max_depth=3
+        max_depth=3,
+        direction=direction,
+        project_name=project.name,
+        base_path=path
     )
 
-    if existing:
-        # Update existing diagram (preserve ID for consistency)
-        existing.mermaid_code = diagram_data["mermaid_code"]
-        existing.diagram_metadata = diagram_data["metadata"]
-        existing.title = f"Directory Structure: {project.name}"
-        db.commit()
-        return existing
-    else:
-        # Create new diagram
-        diagram = Diagram(
-            id=diagram_data["id"],
-            project_id=project.id,
-            type=DiagramType.directory,
-            title=f"Directory Structure: {project.name}",
-            mermaid_code=diagram_data["mermaid_code"],
-            diagram_metadata=diagram_data["metadata"]
-        )
-        db.add(diagram)
-        db.commit()
-        db.refresh(diagram)
-        return diagram
+    # Direction is a display preference - always return fresh diagram without caching
+    # This ensures toggling direction always works correctly
+    return Diagram(
+        id=diagram_data["id"],
+        project_id=project.id,
+        type=DiagramType.directory,
+        title=f"Directory Structure: {project.name}",
+        mermaid_code=diagram_data["mermaid_code"],
+        diagram_metadata=diagram_data["metadata"]
+    )
 
 
 @router.get("/{project_id}/diagrams", response_model=DiagramListResponse)
@@ -181,6 +219,9 @@ async def get_diagram(
     project_id: str,
     diagram_type: DiagramType,
     regenerate: bool = False,
+    path: str = "",
+    depth: int = 1,
+    direction: str = "LR",
     db: Session = Depends(get_db)
 ):
     """
@@ -190,11 +231,22 @@ async def get_diagram(
         project_id: Project ID
         diagram_type: Type of diagram to get
         regenerate: If True, regenerate even if cached
+        path: For dependency diagrams, filter to this directory path (enables drill-down)
+        depth: For dependency diagrams, how many directory levels to show
+        direction: Graph direction - "LR" (left-right) or "TD" (top-down)
     """
     project = get_project_or_404(project_id, db)
 
-    # Check for cached diagram (unless regenerate requested)
-    if not regenerate:
+    # Direction is a display preference - never cache when direction might vary
+    # Only cache dependency diagrams without path filtering
+    use_cache = (
+        not regenerate
+        and not path
+        and diagram_type == DiagramType.dependency
+    )
+
+    # Check for cached diagram (only for dependency diagrams without customization)
+    if use_cache:
         cached = db.query(Diagram).filter(
             Diagram.project_id == project_id,
             Diagram.type == diagram_type
@@ -212,9 +264,9 @@ async def get_diagram(
 
     # Generate diagram based on type
     if diagram_type == DiagramType.dependency:
-        diagram = generate_dependency_diagram(project, db)
+        diagram = generate_dependency_diagram(project, db, path=path, depth=depth, direction=direction)
     elif diagram_type == DiagramType.directory:
-        diagram = generate_directory_diagram(project, db)
+        diagram = generate_directory_diagram(project, db, direction=direction, path=path)
     elif diagram_type == DiagramType.architecture:
         # Architecture diagram not yet implemented
         raise HTTPException(
@@ -240,7 +292,7 @@ async def get_diagram(
         title=diagram.title,
         mermaid_code=diagram.mermaid_code,
         metadata=diagram.diagram_metadata,
-        generated_at=diagram.created_at
+        generated_at=diagram.created_at or datetime.utcnow()
     )
 
 
@@ -349,4 +401,134 @@ async def regenerate_all_diagrams(
         "message": f"Generated {len(generated)} diagrams",
         "generated": generated,
         "errors": errors if errors else None
+    }
+
+
+def _get_dependency_graph(project: Project):
+    """Helper to get dependency graph for a project."""
+    if not project.local_path or not Path(project.local_path).exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Project has not been analyzed yet. Run analysis first."
+        )
+
+    analyzer = GenericAnalyzer(
+        repo_path=project.local_path,
+        max_file_size_mb=settings.max_file_size_mb,
+        use_gitignore=True
+    )
+    analyzer.analyze()
+
+    dep_graph = analyzer.get_dependency_graph()
+    if not dep_graph:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to build dependency graph"
+        )
+
+    return dep_graph
+
+
+@router.get("/{project_id}/dependencies/summary")
+async def get_dependency_summary(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get dependency summary statistics for a project.
+
+    Returns overview metrics, circular dependencies, and top files.
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    summary = dep_graph.get_summary()
+    circular_report = dep_graph.get_circular_dependencies_report()
+
+    return {
+        "project_id": project_id,
+        "project_name": project.name,
+        "stats": {
+            "total_files": summary["total_modules"],
+            "total_dependencies": summary["total_dependencies"],
+            "max_depth": summary["max_dependency_depth"],
+            "leaf_files": len(summary["leaf_nodes"]),
+            "root_files": len(summary["root_nodes"]),
+        },
+        "circular_dependencies": {
+            "count": circular_report["count"],
+            "has_circular": circular_report["has_circular_dependencies"],
+            "cycles": circular_report["cycles"],
+        },
+        "most_imported": [
+            {"file": f, "count": c} for f, c in summary["most_imported"]
+        ],
+        "most_dependencies": [
+            {"file": f, "count": c} for f, c in summary["most_dependencies"]
+        ],
+    }
+
+
+@router.get("/{project_id}/dependencies/files")
+async def get_dependency_files(
+    project_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get list of all files with dependency counts for search/selection.
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    files = dep_graph.get_file_list()
+
+    return {
+        "project_id": project_id,
+        "files": files,
+        "total": len(files),
+    }
+
+
+@router.get("/{project_id}/dependencies/file/{file_path:path}")
+async def get_file_dependencies(
+    project_id: str,
+    file_path: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the ego graph for a specific file - its imports and dependents.
+
+    Args:
+        project_id: Project ID
+        file_path: Relative path to the file within the project
+    """
+    project = get_project_or_404(project_id, db)
+
+    if project.status != ProjectStatus.ready:
+        raise HTTPException(
+            status_code=400,
+            detail="Project must be in 'ready' status"
+        )
+
+    dep_graph = _get_dependency_graph(project)
+    ego_data = dep_graph.get_ego_graph(file_path)
+
+    if "error" in ego_data:
+        raise HTTPException(status_code=404, detail=ego_data["error"])
+
+    return {
+        "project_id": project_id,
+        **ego_data,
     }

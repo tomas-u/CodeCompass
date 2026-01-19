@@ -41,6 +41,9 @@ import type {
   Diagram,
   DiagramListItem,
   DiagramType,
+  DependencySummary,
+  DependencyFileList,
+  FileEgoGraph,
   // Files
   FileTree,
   FileContent,
@@ -320,9 +323,25 @@ class CodeCompassAPI {
 
   /**
    * Get specific report
+   * @param generate - If true, generate report if it doesn't exist (default: true)
    */
-  async getReport(projectId: string, type: ReportType): Promise<Report> {
-    return request<Report>(`/api/projects/${projectId}/reports/${type}`);
+  async getReport(projectId: string, type: ReportType, generate: boolean = true): Promise<Report> {
+    return request<Report>(`/api/projects/${projectId}/reports/${type}?generate=${generate}`);
+  }
+
+  /**
+   * Generate or regenerate a report
+   * @param force - Force regeneration even if report exists
+   */
+  async generateReport(
+    projectId: string,
+    type: ReportType,
+    force: boolean = false
+  ): Promise<{ message: string; report_id: string; generation_time_ms: string }> {
+    return request<{ message: string; report_id: string; generation_time_ms: string }>(
+      `/api/projects/${projectId}/reports/generate?report_type=${type}&force=${force}`,
+      { method: 'POST' }
+    );
   }
 
   // ============================================================================
@@ -341,9 +360,39 @@ class CodeCompassAPI {
 
   /**
    * Get specific diagram
+   *
+   * @param projectId - Project ID
+   * @param type - Diagram type
+   * @param options - Optional parameters for drill-down navigation
    */
-  async getDiagram(projectId: string, type: DiagramType): Promise<Diagram> {
-    return request<Diagram>(`/api/projects/${projectId}/diagrams/${type}`);
+  async getDiagram(
+    projectId: string,
+    type: DiagramType,
+    options?: {
+      path?: string;
+      depth?: number;
+      regenerate?: boolean;
+      direction?: 'LR' | 'TD';
+    }
+  ): Promise<Diagram> {
+    const queryParams = new URLSearchParams();
+    if (options?.path !== undefined) {
+      queryParams.append('path', options.path);
+    }
+    if (options?.depth !== undefined) {
+      queryParams.append('depth', options.depth.toString());
+    }
+    if (options?.regenerate) {
+      queryParams.append('regenerate', 'true');
+    }
+    if (options?.direction) {
+      queryParams.append('direction', options.direction);
+    }
+
+    const query = queryParams.toString();
+    const endpoint = `/api/projects/${projectId}/diagrams/${type}${query ? `?${query}` : ''}`;
+
+    return request<Diagram>(endpoint);
   }
 
   /**
@@ -351,6 +400,27 @@ class CodeCompassAPI {
    */
   async getDiagramSVG(projectId: string, type: DiagramType): Promise<string> {
     return request<string>(`/api/projects/${projectId}/diagrams/${type}/svg`);
+  }
+
+  /**
+   * Get dependency summary statistics
+   */
+  async getDependencySummary(projectId: string): Promise<DependencySummary> {
+    return request<DependencySummary>(`/api/projects/${projectId}/dependencies/summary`);
+  }
+
+  /**
+   * Get list of all files with dependency counts
+   */
+  async getDependencyFiles(projectId: string): Promise<DependencyFileList> {
+    return request<DependencyFileList>(`/api/projects/${projectId}/dependencies/files`);
+  }
+
+  /**
+   * Get ego graph for a specific file (its imports and dependents)
+   */
+  async getFileDependencies(projectId: string, filePath: string): Promise<FileEgoGraph> {
+    return request<FileEgoGraph>(`/api/projects/${projectId}/dependencies/file/${encodeURIComponent(filePath)}`);
   }
 
   // ============================================================================
@@ -417,6 +487,104 @@ class CodeCompassAPI {
       method: 'POST',
       body: JSON.stringify(chatRequest),
     });
+  }
+
+  /**
+   * Send chat message with streaming response
+   *
+   * @param projectId - Project ID
+   * @param message - User message
+   * @param onToken - Callback for each token received
+   * @param onSources - Callback for sources (called once before tokens)
+   * @param onDone - Callback when stream is complete
+   * @param onError - Callback for errors
+   */
+  async sendChatMessageStreaming(
+    projectId: string,
+    message: string,
+    onToken: (token: string) => void,
+    onSources: (sources: Array<{
+      file_path: string;
+      start_line: number;
+      end_line: number;
+      snippet: string;
+      relevance_score: number;
+    }>) => void,
+    onDone: () => void,
+    onError: (error: Error) => void,
+  ): Promise<void> {
+    const url = `${API_CONFIG.baseURL}/api/projects/${projectId}/chat`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          options: { stream: true },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        let eventType = '';
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7);
+          } else if (line.startsWith('data: ') && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              switch (eventType) {
+                case 'token':
+                  if (data.content) {
+                    onToken(data.content);
+                  }
+                  break;
+                case 'sources':
+                  if (data.sources) {
+                    onSources(data.sources);
+                  }
+                  break;
+                case 'done':
+                  onDone();
+                  break;
+                case 'error':
+                  onError(new Error(data.message || 'Unknown streaming error'));
+                  break;
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse SSE data:', line);
+            }
+            eventType = '';
+          }
+        }
+      }
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error('Streaming failed'));
+    }
   }
 
   /**

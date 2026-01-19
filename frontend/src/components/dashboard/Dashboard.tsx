@@ -60,8 +60,8 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-auto">
+      {/* Tab Content - diagrams tab handles its own scrolling */}
+      <div className={`flex-1 ${activeTab === 'diagrams' ? 'overflow-hidden' : 'overflow-auto'}`}>
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'diagrams' && <DiagramsTab />}
         {activeTab === 'files' && <FilesTab />}

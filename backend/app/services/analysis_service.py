@@ -1,5 +1,6 @@
 """Real code analysis service using Tree-sitter."""
 
+import asyncio
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -10,9 +11,18 @@ from app.models.project import Project
 from app.schemas.project import ProjectStatus, SourceType
 from app.services.git_service import GitService
 from app.services.analyzer.generic_analyzer import GenericAnalyzer
+from app.services.chunking_service import ChunkingService
+from app.services.llm import get_embedding_provider, get_vector_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+async def _debug_delay(phase: str) -> None:
+    """Add debug delay between analysis phases if configured."""
+    if settings.debug_analysis_delay > 0:
+        logger.debug(f"Debug delay: waiting {settings.debug_analysis_delay}s after {phase}")
+        await asyncio.sleep(settings.debug_analysis_delay)
 
 
 async def run_analysis(project_id: str) -> None:
@@ -44,6 +54,7 @@ async def run_analysis(project_id: str) -> None:
             logger.info(f"Phase 1: Cloning repository for project {project_id}")
             project.status = ProjectStatus.cloning
             db.commit()
+            await _debug_delay("cloning status set")
 
             # Determine clone location
             clone_dir = Path("./repos") / project_id
@@ -88,6 +99,7 @@ async def run_analysis(project_id: str) -> None:
         logger.info(f"Phase 2: Scanning repository for project {project_id}")
         project.status = ProjectStatus.scanning
         db.commit()
+        await _debug_delay("scanning status set")
 
         # Initialize analyzer
         analyzer = GenericAnalyzer(
@@ -102,16 +114,56 @@ async def run_analysis(project_id: str) -> None:
         logger.info(f"Phase 3: Analyzing code for project {project_id}")
         project.status = ProjectStatus.analyzing
         db.commit()
+        await _debug_delay("analyzing status set")
 
         # Run analysis
         stats = analyzer.analyze()
 
         # ========================================================================
-        # Phase 4: READY
+        # Phase 4: EMBEDDING
         # ========================================================================
-        logger.info(f"Phase 4: Analysis complete for project {project_id}")
+        logger.info(f"Phase 4: Generating embeddings for project {project_id}")
+        project.status = ProjectStatus.embedding
+        project.stats = stats  # Save stats now in case embedding fails
+        db.commit()
+        await _debug_delay("embedding status set")
+
+        # Try to generate embeddings (graceful failure)
+        try:
+            embedding_provider = get_embedding_provider()
+            vector_service = get_vector_service()
+
+            # Check if embedding service is available
+            embedding_healthy = await embedding_provider.health_check()
+            vector_healthy = await vector_service.health_check()
+
+            if embedding_healthy and vector_healthy:
+                chunking_service = ChunkingService(
+                    max_file_size_mb=settings.max_file_size_mb
+                )
+
+                chunk_count = await chunking_service.chunk_project(
+                    project_id=project_id,
+                    repo_path=project.local_path,
+                    db=db,
+                    embedding_provider=embedding_provider,
+                    vector_service=vector_service,
+                )
+                logger.info(f"Generated {chunk_count} chunks for project {project_id}")
+            else:
+                logger.warning(
+                    f"Embedding services unavailable (embedding: {embedding_healthy}, "
+                    f"vector: {vector_healthy}), skipping embedding phase"
+                )
+        except Exception as e:
+            # Log but don't fail - embedding is optional
+            logger.warning(f"Embedding phase failed for project {project_id}: {e}")
+
+        # ========================================================================
+        # Phase 5: READY
+        # ========================================================================
+        logger.info(f"Phase 5: Analysis complete for project {project_id}")
         project.status = ProjectStatus.ready
-        project.stats = stats
         project.last_analyzed_at = datetime.utcnow()
         db.commit()
 
@@ -151,7 +203,7 @@ async def re_analyze(project_id: str, force: bool = False) -> None:
             return
 
         # Check if already analyzing
-        if project.status in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing]:
+        if project.status in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing, ProjectStatus.embedding]:
             logger.warning(f"Project {project_id} is already being analyzed")
             return
 
@@ -185,7 +237,7 @@ async def cancel_analysis(project_id: str) -> bool:
             return False
 
         # Check if analyzing
-        if project.status not in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing]:
+        if project.status not in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing, ProjectStatus.embedding]:
             return False
 
         # Set to failed status

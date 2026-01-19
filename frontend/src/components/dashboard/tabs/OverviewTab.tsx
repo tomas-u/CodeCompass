@@ -5,6 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
 import { mockProjects, mockArchitectureReport } from '@/lib/mock-data';
+import { MockDataIndicator } from '@/components/ui/mock-data-indicator';
+import { AnalysisInProgress } from '@/components/ui/loading-skeleton';
 
 export function OverviewTab() {
   const { currentProjectId, projects } = useAppStore();
@@ -13,9 +15,27 @@ export function OverviewTab() {
   const allProjects = projects.length > 0 ? projects : mockProjects;
   const currentProject = allProjects.find(p => p.id === currentProjectId) || mockProjects[0];
 
+  // Check if analysis is in progress
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
+
+  // Show loading state while analyzing
+  if (isAnalyzing) {
+    return (
+      <div className="p-6">
+        <AnalysisInProgress status={currentProject.status} />
+      </div>
+    );
+  }
+
   // Use real project stats if available, otherwise fall back to mock
   const hasRealStats = currentProject?.stats && currentProject.status === 'ready';
-  const stats = hasRealStats ? currentProject.stats : mockArchitectureReport.overview.stats;
+  const rawStats = hasRealStats ? currentProject.stats! : mockArchitectureReport.overview.stats;
+  // Handle both snake_case (API) and camelCase (mock) for lines of code
+  const stats = {
+    ...rawStats,
+    lines_of_code: (rawStats as any).lines_of_code ?? (rawStats as any).linesOfCode ?? 0,
+  };
   const report = mockArchitectureReport; // Keep for now for other fields
 
   return (
@@ -23,7 +43,9 @@ export function OverviewTab() {
       {/* Project Info Header */}
       <div>
         <h1 className="text-2xl font-bold">{currentProject?.name || report.overview.name}</h1>
-        <p className="text-muted-foreground mt-1">{report.overview.description}</p>
+        <MockDataIndicator label="Mock Description" className="mt-1 inline-block">
+          <p className="text-muted-foreground py-1 px-2">{report.overview.description}</p>
+        </MockDataIndicator>
       </div>
 
       {/* Stats Cards */}
@@ -49,7 +71,7 @@ export function OverviewTab() {
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {((stats.lines_of_code || stats.linesOfCode || 0) / 1000).toFixed(1)}k
+                  {((stats.lines_of_code || 0) / 1000).toFixed(1)}k
                 </p>
                 <p className="text-sm text-muted-foreground">Lines of Code</p>
               </div>
@@ -116,8 +138,8 @@ export function OverviewTab() {
               </div>
             </div>
             {!hasRealStats && (
-              <>
-                <div>
+              <MockDataIndicator label="Mock Tech Stack" className="space-y-4">
+                <div className="pt-4">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Frameworks</p>
                   <div className="flex flex-wrap gap-2">
                     {report.techStack.frameworks.map((fw) => (
@@ -133,7 +155,7 @@ export function OverviewTab() {
                     ))}
                   </div>
                 </div>
-                <div>
+                <div className="pb-2">
                   <p className="text-sm font-medium text-muted-foreground mb-2">Tools</p>
                   <div className="flex flex-wrap gap-2">
                     {report.techStack.tools.map((tool) => (
@@ -141,79 +163,85 @@ export function OverviewTab() {
                     ))}
                   </div>
                 </div>
-              </>
+              </MockDataIndicator>
             )}
           </CardContent>
         </Card>
 
         {/* Key Files */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileCode className="h-5 w-5" />
-              Key Files
-            </CardTitle>
-            <CardDescription>Important files in this codebase</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {report.keyFiles.map((file, index) => (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                >
-                  <FileCode className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <p className="font-mono text-sm">{file.file}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{file.description}</p>
+        <MockDataIndicator label="Mock Key Files">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileCode className="h-5 w-5" />
+                Key Files
+              </CardTitle>
+              <CardDescription>Important files in this codebase</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {report.keyFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  >
+                    <FileCode className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                    <div>
+                      <p className="font-mono text-sm">{file.file}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{file.description}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </MockDataIndicator>
       </div>
 
       {/* Architecture & Entry Points */}
       <div className="grid grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5" />
-              Architecture Pattern
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant="default" className="text-sm py-1 px-3">
-              {report.architecturePattern}
-            </Badge>
-            <p className="text-sm text-muted-foreground mt-3">
-              This codebase follows a layered architecture pattern with clear separation between
-              API routes, services, and data models.
-            </p>
-          </CardContent>
-        </Card>
+        <MockDataIndicator label="Mock Architecture">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5" />
+                Architecture Pattern
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Badge variant="default" className="text-sm py-1 px-3">
+                {report.architecturePattern}
+              </Badge>
+              <p className="text-sm text-muted-foreground mt-3">
+                This codebase follows a layered architecture pattern with clear separation between
+                API routes, services, and data models.
+              </p>
+            </CardContent>
+          </Card>
+        </MockDataIndicator>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Code2 className="h-5 w-5" />
-              Entry Points
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {report.entryPoints.map((entry, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {entry.file}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">{entry.description}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <MockDataIndicator label="Mock Entry Points">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Code2 className="h-5 w-5" />
+                Entry Points
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {report.entryPoints.map((entry, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {entry.file}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">{entry.description}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </MockDataIndicator>
       </div>
 
       {/* Languages Breakdown */}
@@ -225,7 +253,7 @@ export function OverviewTab() {
           <CardContent>
             <div className="space-y-3">
               {Object.entries(stats.languages).map(([lang, langStats]) => {
-                const totalLines = stats.lines_of_code || stats.linesOfCode || 1;
+                const totalLines = stats.lines_of_code || 1;
                 const percentage = (langStats.lines / totalLines) * 100;
                 return (
                   <div key={lang}>

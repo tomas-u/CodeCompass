@@ -193,6 +193,77 @@ export interface DiagramListItem {
   preview_available: boolean;
 }
 
+// Dependency Summary types
+export interface DependencyStats {
+  total_files: number;
+  total_dependencies: number;
+  max_depth: number;
+  leaf_files: number;
+  root_files: number;
+}
+
+export interface CircularDependency {
+  files: string[];
+  length: number;
+}
+
+export interface CircularDependenciesInfo {
+  count: number;
+  has_circular: boolean;
+  cycles: CircularDependency[];
+}
+
+export interface FileCount {
+  file: string;
+  count: number;
+}
+
+export interface DependencySummary {
+  project_id: string;
+  project_name: string;
+  stats: DependencyStats;
+  circular_dependencies: CircularDependenciesInfo;
+  most_imported: FileCount[];
+  most_dependencies: FileCount[];
+}
+
+// File dependency (ego graph) types
+export interface FileInfo {
+  file: string;
+  module_name: string;
+  language: string;
+}
+
+export interface FileDependencyInfo {
+  file: string;
+  module_name: string;
+  language: string;
+  imports_count: number;
+  imported_by_count: number;
+}
+
+export interface FileEgoGraph {
+  project_id: string;
+  file: string;
+  module_name: string;
+  language: string;
+  imports: FileInfo[];
+  imports_count: number;
+  imported_by: FileInfo[];
+  imported_by_count: number;
+  external_deps: string[];
+  is_leaf: boolean;
+  is_root: boolean;
+  in_circular_dependency: boolean;
+  circular_cycles: string[][];
+}
+
+export interface DependencyFileList {
+  project_id: string;
+  files: FileDependencyInfo[];
+  total: number;
+}
+
 // ============================================================================
 // File Types
 // ============================================================================
@@ -407,6 +478,9 @@ export interface HealthResponse {
   version: string;
   uptime_seconds: number;
   llm_provider: string;
+  llm_model_configured: string;
+  llm_model_loaded: string | null;
+  llm_models_available: string[];
   llm_status: string;
 }
 

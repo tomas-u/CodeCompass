@@ -16,7 +16,7 @@ import { getErrorMessage } from '@/lib/api-error';
 
 export function WelcomePage() {
   const router = useRouter();
-  const { fetchProjects, setCurrentProject } = useAppStore();
+  const { fetchProjects, addProject } = useAppStore();
   const [gitUrl, setGitUrl] = useState('');
   const [gitBranch, setGitBranch] = useState('main');
   const [localPath, setLocalPath] = useState('');
@@ -42,16 +42,27 @@ export function WelcomePage() {
         branch: gitBranch || 'main',
       });
 
-      // Refresh project list and set as current
-      await fetchProjects();
-      setCurrentProject(project.id);
+      // Add project to store immediately so the project page can render the header
+      addProject({
+        id: project.id,
+        name: project.name,
+        source_type: project.source_type,
+        source: project.source,
+        status: project.status,
+        stats: project.stats,
+        last_analyzed_at: project.last_analyzed_at,
+        created_at: project.created_at,
+      });
+
+      // Navigate immediately
+      router.push(`/projects/${project.id}`);
+
+      // Refresh project list in background (non-blocking)
+      fetchProjects();
 
       // Clear form
       setGitUrl('');
       setGitBranch('main');
-
-      // Navigate to project page
-      router.push(`/projects/${project.id}`);
     } catch (err) {
       setError(getErrorMessage(err));
       setIsLoading(false);
@@ -77,15 +88,26 @@ export function WelcomePage() {
         branch: 'local',
       });
 
-      // Refresh project list and set as current
-      await fetchProjects();
-      setCurrentProject(project.id);
+      // Add project to store immediately so the project page can render the header
+      addProject({
+        id: project.id,
+        name: project.name,
+        source_type: project.source_type,
+        source: project.source,
+        status: project.status,
+        stats: project.stats,
+        last_analyzed_at: project.last_analyzed_at,
+        created_at: project.created_at,
+      });
+
+      // Navigate immediately
+      router.push(`/projects/${project.id}`);
+
+      // Refresh project list in background (non-blocking)
+      fetchProjects();
 
       // Clear form
       setLocalPath('');
-
-      // Navigate to project page
-      router.push(`/projects/${project.id}`);
     } catch (err) {
       setError(getErrorMessage(err));
       setIsLoading(false);

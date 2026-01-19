@@ -26,6 +26,31 @@ When performing E2E tests with MCP Playwright tools:
 4. **If visual validation is required** - Run tests on native Linux with GPU support or Windows
 5. **Screenshot files will be blank/white in WSL** - This is expected and cannot be fixed with xvfb
 
+**Git Branching Workflow (CRITICAL):**
+Branch protection is enabled on `main`. All changes must go through pull requests.
+
+1. **Before starting any new story/feature:**
+   - Create a feature branch from main: `git checkout main && git pull && git checkout -b feature/<short-description>`
+   - Branch naming convention: `feature/<issue-number>-<short-description>` or `feature/<short-description>`
+   - Examples: `feature/56-function-extraction`, `feature/dependency-dashboard`, `fix/diagram-caching`
+
+2. **During development:**
+   - Commit frequently to the feature branch
+   - Keep commits focused and well-described
+   - Push to remote regularly: `git push -u origin <branch-name>`
+
+3. **When work is complete:**
+   - Ensure all tests pass and build succeeds
+   - Push final changes to the feature branch
+   - Create a pull request: `gh pr create --base main --head <branch-name>`
+   - Include a clear description of changes in the PR
+   - Merge using **squash and merge** to keep main history clean: `gh pr merge --squash`
+
+4. **NEVER:**
+   - Push directly to `main` branch
+   - Use `git push --force` on `main`
+   - Merge without a pull request
+
 Key commands:
 - Backend: `cd backend && uvicorn app.main:app --reload`
 - Frontend: `cd frontend && npm run dev`

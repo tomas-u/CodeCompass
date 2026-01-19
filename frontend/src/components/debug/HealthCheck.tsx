@@ -116,8 +116,33 @@ export function HealthCheck() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">LLM Status</p>
-                <p className="font-medium capitalize">{health.llm_status}</p>
+                <Badge variant={
+                  health.llm_status === 'ready' ? 'default' :
+                  health.llm_status === 'idle' ? 'secondary' :
+                  health.llm_status === 'connected' ? 'secondary' :
+                  'destructive'
+                }>
+                  {health.llm_status}
+                </Badge>
               </div>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground">Model Loaded</p>
+                <p className="font-medium">
+                  {health.llm_model_loaded || <span className="text-muted-foreground italic">None (will load on first request)</span>}
+                </p>
+              </div>
+              {health.llm_models_available.length > 0 && (
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Available Models</p>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {health.llm_models_available.map((model) => (
+                      <Badge key={model} variant="outline" className="text-xs">
+                        {model}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator className="my-3" />
