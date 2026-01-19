@@ -60,7 +60,7 @@ frontend/playwright/.auth/
 *.pt
 *.pth
 *.onnx
-models/
+/models/
 
 # OS
 .DS_Store
