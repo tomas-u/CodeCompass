@@ -99,14 +99,17 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
-          <Button
-            variant={isChatPanelOpen ? "default" : "ghost"}
-            size="icon"
-            onClick={toggleChatPanel}
-            title={isChatPanelOpen ? "Close chat panel" : "Open chat panel"}
-          >
-            <MessageSquare className="h-5 w-5" />
-          </Button>
+          {/* Chat toggle - only shown when a project is selected */}
+          {currentProjectId && (
+            <Button
+              variant={isChatPanelOpen ? "default" : "ghost"}
+              size="icon"
+              onClick={toggleChatPanel}
+              title={isChatPanelOpen ? "Close chat panel" : "Open chat panel"}
+            >
+              <MessageSquare className="h-5 w-5" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon">
             <Settings className="h-5 w-5" />
           </Button>

@@ -145,17 +145,26 @@ class TestChatAPI:
         )
         mock_get_rag.return_value = mock_rag
 
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Now chat with that session ID
         response = client.post(
             f"/api/projects/{project.id}/chat",
             json={
                 "message": "Hello",
-                "session_id": "existing-session-123",
+                "session_id": session_id,
             },
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["session_id"] == "existing-session-123"
+        assert data["session_id"] == session_id
 
     @patch("app.api.routes.chat.get_rag_service")
     def test_chat_with_custom_options(self, mock_get_rag, client, project_factory):
@@ -275,13 +284,22 @@ class TestChatSessionsAPI:
             status=ProjectStatus.ready,
         )
 
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Now delete the session
         response = client.delete(
-            f"/api/projects/{project.id}/chat/sessions/session-123"
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["session_id"] == "session-123"
+        assert data["session_id"] == session_id
 
     def test_delete_session_project_not_found(self, client):
         """Test deleting session from non-existent project."""

@@ -615,6 +615,16 @@ class CodeCompassAPI {
     });
   }
 
+  /**
+   * Create a new chat session
+   */
+  async createChatSession(projectId: string, title?: string): Promise<ChatSession> {
+    return request<ChatSession>(`/api/projects/${projectId}/chat/sessions`, {
+      method: 'POST',
+      body: title ? JSON.stringify({ title }) : undefined,
+    });
+  }
+
   // ============================================================================
   // Settings
   // ============================================================================
