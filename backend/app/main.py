@@ -2,6 +2,7 @@
 
 import time
 import logging
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -66,14 +67,46 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
+    """Health check endpoint with actual Ollama status."""
     uptime = int(time.time() - start_time)
+
+    # Default values
+    llm_status = "unknown"
+    llm_model_loaded = None
+    available_models = []
+
+    # Query Ollama for actual status
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            # Check if Ollama is reachable
+            tags_response = await client.get(f"{settings.llm_base_url}/api/tags")
+            if tags_response.status_code == 200:
+                llm_status = "connected"
+                tags_data = tags_response.json()
+                available_models = [m.get("name") for m in tags_data.get("models", [])]
+
+            # Check which model is currently loaded
+            ps_response = await client.get(f"{settings.llm_base_url}/api/ps")
+            if ps_response.status_code == 200:
+                ps_data = ps_response.json()
+                loaded_models = ps_data.get("models", [])
+                if loaded_models:
+                    llm_model_loaded = loaded_models[0].get("name")
+                    llm_status = "ready"
+                else:
+                    llm_status = "idle"  # Connected but no model loaded
+    except Exception as e:
+        llm_status = "unavailable"
+
     return {
         "status": "healthy",
         "version": settings.version,
         "uptime_seconds": uptime,
         "llm_provider": settings.llm_provider,
-        "llm_status": "ready"
+        "llm_model_configured": settings.llm_model,
+        "llm_model_loaded": llm_model_loaded,
+        "llm_models_available": available_models,
+        "llm_status": llm_status
     }
 
 

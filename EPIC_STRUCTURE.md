@@ -42,26 +42,26 @@
 **Stories:**
 - #25: Generate Mermaid dependency diagrams (depends on #23)
 
-## Epic #5: Vector Search & Embeddings
+## Epic #5: Vector Search & Embeddings ✅
 **Goal:** Build semantic code search using vector embeddings and Qdrant.
 
 **Stories:**
-- #26: Set up Qdrant vector database
-- #27: Implement code chunking strategy (depends on #33, #21, #22)
-- #28: Implement embedding generation service (depends on #27)
-- #29: Build semantic search API endpoint (depends on #26, #28)
+- #26: Set up Qdrant vector database ✅
+- #27: Implement code chunking strategy (depends on #33, #21, #22) ✅
+- #28: Implement embedding generation service (depends on #27) ✅
+- #29: Build semantic search API endpoint (depends on #26, #28) ✅
 
-## Epic #6: AI-Powered Chat (RAG)
+## Epic #6: AI-Powered Chat (RAG) ✅
 **Goal:** Build AI-powered Q&A chat enabling natural language queries about the codebase.
 
 **Stories:**
-- #30: Implement RAG pipeline for chat (depends on #29)
+- #30: Implement RAG pipeline for chat (depends on #29) ✅
 
-## Epic #7: LLM Provider Expansion
+## Epic #7: LLM Provider Expansion ✅
 **Goal:** Expand LLM provider support beyond local HuggingFace models.
 
 **Stories:**
-- #32: Implement multiple LLM provider support
+- #32: Implement multiple LLM provider support ✅ (Ollama provider implemented)
 
 ## Epic #8: Polish & Developer Experience
 **Goal:** Polish the application with LSP semantic analysis, incremental updates, performance optimizations, and export features.
@@ -186,10 +186,27 @@
 ## Current Status
 
 - ✅ **Phase 1 Foundation:** API client, types, error handling, health check (completed)
-- 🎯 **Next Up:** Phase 1 Core Integration (#9, #10, #11, #33, #21-23, #31)
+- ✅ **Phase 1 Core Integration:** Project CRUD, status polling, Tree-sitter analysis (completed)
+  - #9: Project list from API ✅
+  - #10: Project creation ✅
+  - #11: Status polling ✅
+  - #33: Generic Tree-sitter analyzer ✅
+- ✅ **Phase 3 Search & Embeddings:** Vector search and RAG infrastructure (completed)
+  - #26: Qdrant vector database setup ✅
+  - #27: Code chunking strategy ✅
+  - #28: Embedding generation service ✅
+  - #29: Semantic search API ✅
+- ✅ **Phase 4 AI Chat:** Streaming LLM and RAG-powered chat (completed)
+  - #30: RAG pipeline implementation ✅
+  - #32: Ollama LLM provider ✅
+  - Streaming SSE responses ✅
+- 🎯 **Next Up:** Phase 2 (#12, #13, #14, #15) - Analysis UI, Reports, Diagrams
 - 📝 **Architecture Decisions:**
   - Hybrid analyzer: Generic Tree-sitter + language-specific enhancements
   - Hybrid semantic: Tree-sitter (syntax) + LSP (semantics, optional)
+  - LLM: Ollama provider with streaming SSE
+  - Embeddings: sentence-transformers via dedicated microservice
+  - Vector DB: Qdrant for semantic code search
 
 ## Labels
 

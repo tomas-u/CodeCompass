@@ -11,6 +11,8 @@ from app.models.project import Project
 from app.schemas.project import ProjectStatus, SourceType
 from app.services.git_service import GitService
 from app.services.analyzer.generic_analyzer import GenericAnalyzer
+from app.services.chunking_service import ChunkingService
+from app.services.llm import get_embedding_provider, get_vector_service
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -118,11 +120,50 @@ async def run_analysis(project_id: str) -> None:
         stats = analyzer.analyze()
 
         # ========================================================================
-        # Phase 4: READY
+        # Phase 4: EMBEDDING
         # ========================================================================
-        logger.info(f"Phase 4: Analysis complete for project {project_id}")
+        logger.info(f"Phase 4: Generating embeddings for project {project_id}")
+        project.status = ProjectStatus.embedding
+        project.stats = stats  # Save stats now in case embedding fails
+        db.commit()
+        await _debug_delay("embedding status set")
+
+        # Try to generate embeddings (graceful failure)
+        try:
+            embedding_provider = get_embedding_provider()
+            vector_service = get_vector_service()
+
+            # Check if embedding service is available
+            embedding_healthy = await embedding_provider.health_check()
+            vector_healthy = await vector_service.health_check()
+
+            if embedding_healthy and vector_healthy:
+                chunking_service = ChunkingService(
+                    max_file_size_mb=settings.max_file_size_mb
+                )
+
+                chunk_count = await chunking_service.chunk_project(
+                    project_id=project_id,
+                    repo_path=project.local_path,
+                    db=db,
+                    embedding_provider=embedding_provider,
+                    vector_service=vector_service,
+                )
+                logger.info(f"Generated {chunk_count} chunks for project {project_id}")
+            else:
+                logger.warning(
+                    f"Embedding services unavailable (embedding: {embedding_healthy}, "
+                    f"vector: {vector_healthy}), skipping embedding phase"
+                )
+        except Exception as e:
+            # Log but don't fail - embedding is optional
+            logger.warning(f"Embedding phase failed for project {project_id}: {e}")
+
+        # ========================================================================
+        # Phase 5: READY
+        # ========================================================================
+        logger.info(f"Phase 5: Analysis complete for project {project_id}")
         project.status = ProjectStatus.ready
-        project.stats = stats
         project.last_analyzed_at = datetime.utcnow()
         db.commit()
 
@@ -162,7 +203,7 @@ async def re_analyze(project_id: str, force: bool = False) -> None:
             return
 
         # Check if already analyzing
-        if project.status in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing]:
+        if project.status in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing, ProjectStatus.embedding]:
             logger.warning(f"Project {project_id} is already being analyzed")
             return
 
@@ -196,7 +237,7 @@ async def cancel_analysis(project_id: str) -> bool:
             return False
 
         # Check if analyzing
-        if project.status not in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing]:
+        if project.status not in [ProjectStatus.cloning, ProjectStatus.scanning, ProjectStatus.analyzing, ProjectStatus.embedding]:
             return False
 
         # Set to failed status

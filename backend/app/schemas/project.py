@@ -18,6 +18,7 @@ class ProjectStatus(str, Enum):
     cloning = "cloning"
     scanning = "scanning"
     analyzing = "analyzing"
+    embedding = "embedding"  # Generating embeddings for RAG
     ready = "ready"
     failed = "failed"
 

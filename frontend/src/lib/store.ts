@@ -55,6 +55,7 @@ interface AppState {
   deleteProject: (id: string) => void;
   setAnalysisProgress: (progress: AnalysisProgress | null) => void;
   addChatMessage: (message: ChatMessage) => void;
+  updateChatMessage: (id: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   clearChat: () => void;
   setIsAiTyping: (typing: boolean) => void;
 }
@@ -120,6 +121,12 @@ export const useAppStore = create<AppState>((set) => ({
 
   addChatMessage: (message) => set((state) => ({
     chatMessages: [...state.chatMessages, message]
+  })),
+
+  updateChatMessage: (id, updater) => set((state) => ({
+    chatMessages: state.chatMessages.map((msg) =>
+      msg.id === id ? updater(msg) : msg
+    ),
   })),
 
   clearChat: () => set({ chatMessages: [] }),

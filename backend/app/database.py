@@ -7,7 +7,8 @@ from app.config import settings
 
 # Create SQLite database engine
 # check_same_thread=False is needed for FastAPI to work with SQLite
-SQLALCHEMY_DATABASE_URL = f"sqlite:///./{settings.database_name}"
+# Use DATABASE_URL from env if set, otherwise use default local path
+SQLALCHEMY_DATABASE_URL = settings.database_url or f"sqlite:///./{settings.database_name}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
@@ -46,5 +47,6 @@ def init_db():
     # Import all models here so they are registered with Base
     from app.models import project  # noqa: F401
     from app.models import diagram  # noqa: F401
+    from app.models import code_chunk  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
