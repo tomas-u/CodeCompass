@@ -90,10 +90,19 @@ The API will be available at:
 - `POST /api/projects/{id}/search` - Search code
 
 ### Chat
-- `POST /api/projects/{id}/chat` - Send chat message
+- `POST /api/projects/{id}/chat` - Send chat message (supports streaming via SSE)
 - `GET /api/projects/{id}/chat/sessions` - List chat sessions
 - `GET /api/projects/{id}/chat/sessions/{id}` - Get session history
 - `DELETE /api/projects/{id}/chat/sessions/{id}` - Delete session
+
+**Streaming Chat:**
+The chat endpoint supports Server-Sent Events (SSE) for real-time token streaming:
+```bash
+curl -N -X POST http://localhost:8000/api/projects/{id}/chat \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"message": "How does auth work?", "stream": true}'
+```
 
 ### Settings
 - `GET /api/settings` - Get settings
@@ -109,7 +118,7 @@ backend/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application
 │   ├── config.py            # Configuration
-│   ├── mock_data.py         # Mock data for MVP
+│   ├── database.py          # SQLAlchemy database setup
 │   ├── api/
 │   │   └── routes/          # API route handlers
 │   │       ├── projects.py
@@ -120,15 +129,36 @@ backend/
 │   │       ├── search.py
 │   │       ├── chat.py
 │   │       └── settings_routes.py
-│   └── schemas/             # Pydantic models
-│       ├── project.py
-│       ├── analysis.py
-│       ├── report.py
-│       ├── diagram.py
-│       ├── chat.py
-│       ├── search.py
-│       ├── files.py
-│       └── settings.py
+│   ├── models/              # SQLAlchemy models
+│   │   └── project.py
+│   ├── schemas/             # Pydantic models
+│   │   ├── project.py
+│   │   ├── analysis.py
+│   │   ├── report.py
+│   │   ├── diagram.py
+│   │   ├── chat.py
+│   │   ├── search.py
+│   │   ├── files.py
+│   │   ├── settings.py
+│   │   └── code_chunk.py    # Vector embeddings schema
+│   └── services/            # Business logic
+│       ├── git_service.py       # Git operations
+│       ├── analysis_service.py  # Code analysis orchestration
+│       ├── chunking_service.py  # Code chunking for embeddings
+│       ├── vector_service.py    # Qdrant vector operations
+│       ├── rag_service.py       # RAG pipeline for chat
+│       ├── analyzer/            # Language analyzers
+│       │   ├── generic_analyzer.py
+│       │   └── ...
+│       └── llm/                 # LLM provider abstraction
+│           ├── base.py              # Abstract LLM provider
+│           ├── factory.py           # Provider factory
+│           ├── ollama_provider.py   # Ollama integration
+│           └── embedding_provider.py # Embedding generation
+├── tests/                   # Test suite
+│   ├── conftest.py          # Global fixtures
+│   ├── unit/                # Unit tests
+│   └── integration/         # Integration tests
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -201,15 +231,43 @@ tests/
 
 This project follows PEP 8 style guidelines.
 
-## MVP Status
+## Implementation Status
 
-This is an MVP implementation using mock data. The following features return static responses:
-- All endpoints return pre-defined mock data
-- No actual database integration (SQLite/Qdrant)
-- No real code analysis or LLM integration
-- No git cloning or file system operations
+The backend has progressed beyond MVP with real implementations:
 
-These will be implemented in future iterations according to the PRD.
+**Implemented Features:**
+- ✅ SQLite database with SQLAlchemy ORM
+- ✅ Git cloning and repository management
+- ✅ Tree-sitter code analysis (Python, JavaScript, TypeScript, and 30+ languages)
+- ✅ Real-time status polling with background tasks
+- ✅ LLM integration via Ollama provider
+- ✅ Embedding generation with sentence-transformers
+- ✅ Vector search with Qdrant
+- ✅ RAG-powered chat with streaming SSE responses
+- ✅ Code chunking for semantic search
+
+**Docker Compose Setup:**
+```bash
+# Start all services (backend, frontend, Qdrant, embedding service)
+docker compose up -d
+
+# Or run locally:
+cd backend && uvicorn app.main:app --reload
+```
+
+**Environment Variables:**
+```bash
+# LLM Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder:7b
+
+# Vector Database
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+
+# Embedding Service
+EMBEDDING_SERVICE_URL=http://localhost:8001
+```
 
 ## License
 
