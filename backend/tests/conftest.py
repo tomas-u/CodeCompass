@@ -31,6 +31,8 @@ def test_db_engine():
     """Create in-memory SQLite database for testing."""
     # Import models to register them with Base before creating tables
     from app.models import project  # noqa: F401
+    from app.models import diagram  # noqa: F401
+    from app.models import chat  # noqa: F401
 
     engine = create_engine(
         "sqlite:///:memory:",
