@@ -1565,4 +1565,186 @@ class TestProjectCRUD:
 
 ---
 
+## 13. Future Enhancements: Component Testing with Vitest + React Testing Library
+
+### 13.1 Rationale
+
+The current test strategy focuses on backend unit/integration tests and frontend E2E tests. This creates a gap in the test pyramid where **frontend component logic is only tested through slow E2E flows**. Adding Vitest + React Testing Library would:
+
+1. **Complete the Test Pyramid** - Add fast unit tests for React components
+2. **Accelerate Development** - Sub-second feedback vs. minutes for E2E
+3. **Improve Coverage** - Test edge cases impractical to cover with E2E
+4. **Enable TDD** - Fast iteration on component logic
+
+### 13.2 Technology Recommendation
+
+| Tool | Purpose | Rationale |
+|------|---------|-----------|
+| **Vitest** | Test runner | Native Vite integration, 2-3x faster than Jest, ESM-first |
+| **@testing-library/react** | Component testing | User-centric queries, async utilities, accessibility focus |
+| **@testing-library/user-event** | Interaction simulation | Realistic user events (typing, clicking) |
+| **MSW (Mock Service Worker)** | API mocking | Intercept network requests at service worker level |
+
+### 13.3 Installation (When Ready)
+
+```bash
+cd frontend
+npm install -D vitest @vitejs/plugin-react @testing-library/react @testing-library/user-event @testing-library/jest-dom jsdom msw
+```
+
+### 13.4 Configuration Files
+
+**vitest.config.ts**:
+```typescript
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./tests/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      exclude: ['node_modules/', 'tests/e2e/']
+    }
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src')
+    }
+  }
+})
+```
+
+**tests/setup.ts**:
+```typescript
+import '@testing-library/jest-dom'
+import { cleanup } from '@testing-library/react'
+import { afterEach } from 'vitest'
+
+afterEach(() => {
+  cleanup()
+})
+```
+
+### 13.5 Priority Components for Testing
+
+| Priority | Component | Test Focus | Estimated Tests |
+|----------|-----------|------------|-----------------|
+| P0 | ChatPanel | Message handling, streaming, keyboard shortcuts | 15-20 |
+| P0 | Zustand Store | State mutations, async actions, selectors | 10-15 |
+| P0 | API Client | Error handling, SSE parsing, timeouts | 10-12 |
+| P1 | DiagramsTab | Mermaid rendering, zoom/pan, copy/download | 12-15 |
+| P1 | useProjectStatus | Polling start/stop, cleanup, callbacks | 6-8 |
+| P1 | OverviewTab | Mock fallback, stats display, loading | 8-10 |
+
+### 13.6 Example Test Patterns
+
+**Testing Zustand Store**:
+```typescript
+import { renderHook, act } from '@testing-library/react'
+import { useAppStore } from '@/lib/store'
+
+describe('useAppStore', () => {
+  beforeEach(() => {
+    useAppStore.setState({ projects: [], chatMessages: [] })
+  })
+
+  it('adds chat message to store', () => {
+    const { result } = renderHook(() => useAppStore())
+
+    act(() => {
+      result.current.addChatMessage({
+        id: '1',
+        role: 'user',
+        content: 'Hello',
+        createdAt: new Date().toISOString()
+      })
+    })
+
+    expect(result.current.chatMessages).toHaveLength(1)
+    expect(result.current.chatMessages[0].content).toBe('Hello')
+  })
+})
+```
+
+**Testing ChatPanel Streaming**:
+```typescript
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ChatPanel } from '@/components/layout/ChatPanel'
+import { vi } from 'vitest'
+
+// Mock the API
+vi.mock('@/lib/api', () => ({
+  api: {
+    sendChatMessageStreaming: vi.fn((projectId, message, onToken) => {
+      onToken('Hello ')
+      onToken('world!')
+      return Promise.resolve()
+    })
+  }
+}))
+
+describe('ChatPanel', () => {
+  it('displays streamed response tokens', async () => {
+    render(<ChatPanel />)
+
+    const input = screen.getByTestId('chat-input')
+    await userEvent.type(input, 'Test message')
+    await userEvent.click(screen.getByTestId('chat-send-button'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Hello world!/)).toBeInTheDocument()
+    })
+  })
+})
+```
+
+### 13.7 Implementation Timeline (Estimated)
+
+| Phase | Tasks | Duration |
+|-------|-------|----------|
+| Setup | Install deps, configure Vitest, setup files | 2 hours |
+| Store Tests | Zustand store unit tests | 3 hours |
+| API Tests | API client with MSW mocking | 4 hours |
+| ChatPanel | Message/streaming component tests | 4 hours |
+| Other P1 | DiagramsTab, hooks, OverviewTab | 6 hours |
+| **Total** | | **~19 hours** |
+
+### 13.8 Success Criteria
+
+- [ ] Vitest configured and running
+- [ ] 50%+ frontend code coverage
+- [ ] All P0 components have test suites
+- [ ] Tests run in <30 seconds
+- [ ] CI/CD integration (optional)
+
+### 13.9 Relationship to Existing Tests
+
+```
+                    /\
+                   /  \
+                  / E2E\ ← Playwright (existing)
+                 /______\   4 critical flows
+                /        \
+               / Component\ ← Vitest + RTL (new)
+              /______________\ P0-P1 components
+             /                \
+            /   Store/API      \ ← Vitest (new)
+           /____________________\ Unit tests
+```
+
+**Integration Strategy**:
+- Keep Playwright for critical user flow E2E tests
+- Add Vitest for component logic and interactions
+- Both run in CI/CD (E2E on merge, unit on every push)
+
+---
+
 **End of Document**
