@@ -29,7 +29,7 @@ CodeCompass transforms unfamiliar repositories into navigable knowledge bases by
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/codecompass.git
+git clone https://github.com/tomas-u/CodeCompass.git
 cd codecompass
 
 # Start all services
@@ -116,7 +116,7 @@ EMBEDDING_SERVICE_URL=http://localhost:8001
 │  │Dashboard │ │ Reports  │ │ Diagrams │ │    Chat Interface    ││
 │  └──────────┘ └──────────┘ └──────────┘ └──────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
-                              │ REST/SSE
+                              │ REST API (SSE for streaming)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Backend (FastAPI)                            │
@@ -375,7 +375,7 @@ See `CLAUDE.md` for detailed coding standards.
 
 ## License
 
-[License details here]
+MIT License - see [LICENSE](LICENSE) file.
 
 ## Roadmap
 
