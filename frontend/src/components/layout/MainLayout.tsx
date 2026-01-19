@@ -10,7 +10,10 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
-  const { isChatPanelOpen } = useAppStore();
+  const { isChatPanelOpen, currentProjectId } = useAppStore();
+
+  // Only show chat panel when a project is selected
+  const showChatPanel = isChatPanelOpen && currentProjectId !== null;
   const [chatWidth, setChatWidth] = useState(480); // Default width for lg breakpoint
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<number>(chatWidth);
@@ -60,8 +63,8 @@ export function MainLayout({ children }: MainLayoutProps) {
           {children}
         </main>
 
-        {/* Chat Panel - always rendered for smooth transitions */}
-        {isChatPanelOpen && (
+        {/* Chat Panel - only shown when a project is selected */}
+        {showChatPanel && (
           <>
             {/* Resize Handle */}
             <div

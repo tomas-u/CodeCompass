@@ -145,17 +145,26 @@ class TestChatAPI:
         )
         mock_get_rag.return_value = mock_rag
 
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Now chat with that session ID
         response = client.post(
             f"/api/projects/{project.id}/chat",
             json={
                 "message": "Hello",
-                "session_id": "existing-session-123",
+                "session_id": session_id,
             },
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["session_id"] == "existing-session-123"
+        assert data["session_id"] == session_id
 
     @patch("app.api.routes.chat.get_rag_service")
     def test_chat_with_custom_options(self, mock_get_rag, client, project_factory):
@@ -275,13 +284,22 @@ class TestChatSessionsAPI:
             status=ProjectStatus.ready,
         )
 
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Now delete the session
         response = client.delete(
-            f"/api/projects/{project.id}/chat/sessions/session-123"
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["session_id"] == "session-123"
+        assert data["session_id"] == session_id
 
     def test_delete_session_project_not_found(self, client):
         """Test deleting session from non-existent project."""
@@ -289,3 +307,264 @@ class TestChatSessionsAPI:
             "/api/projects/nonexistent/chat/sessions/session-123"
         )
         assert response.status_code == 404
+
+    def test_delete_session_not_found(self, client, project_factory):
+        """Test deleting non-existent session."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        response = client.delete(
+            f"/api/projects/{project.id}/chat/sessions/nonexistent-session"
+        )
+        assert response.status_code == 404
+
+    def test_create_session(self, client, project_factory):
+        """Test creating a new chat session."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+        assert "messages" in data
+        assert "created_at" in data
+        # New sessions should have an intro message from the AI
+        assert len(data["messages"]) >= 1
+
+    def test_create_session_with_title(self, client, project_factory):
+        """Test creating a session with custom title."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={"title": "My Custom Chat"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "My Custom Chat"
+
+    def test_create_session_project_not_found(self, client):
+        """Test creating session for non-existent project."""
+        response = client.post(
+            "/api/projects/nonexistent/chat/sessions",
+            json={},
+        )
+        assert response.status_code == 404
+
+    def test_get_session(self, client, project_factory):
+        """Test getting a specific chat session."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={"title": "Test Session"},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Now get the session
+        response = client.get(
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == session_id
+        assert data["title"] == "Test Session"
+        assert "messages" in data
+        assert "created_at" in data
+
+    def test_get_session_not_found(self, client, project_factory):
+        """Test getting non-existent session."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        response = client.get(
+            f"/api/projects/{project.id}/chat/sessions/nonexistent-session"
+        )
+        assert response.status_code == 404
+
+    def test_get_session_project_not_found(self, client):
+        """Test getting session from non-existent project."""
+        response = client.get(
+            "/api/projects/nonexistent/chat/sessions/session-123"
+        )
+        assert response.status_code == 404
+
+    def test_update_session_title(self, client, project_factory):
+        """Test updating session title."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # First create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        assert create_response.status_code == 200
+        session_id = create_response.json()["id"]
+
+        # Update the title
+        response = client.patch(
+            f"/api/projects/{project.id}/chat/sessions/{session_id}",
+            json={"title": "Updated Title"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session_id"] == session_id
+
+        # Verify the update
+        get_response = client.get(
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
+        )
+        assert get_response.json()["title"] == "Updated Title"
+
+    def test_update_session_active_status(self, client, project_factory):
+        """Test updating session active status."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # Create two sessions
+        response1 = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        session1_id = response1.json()["id"]
+
+        response2 = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        session2_id = response2.json()["id"]
+
+        # Set first session as active
+        response = client.patch(
+            f"/api/projects/{project.id}/chat/sessions/{session1_id}",
+            json={"is_active": True},
+        )
+
+        assert response.status_code == 200
+
+    def test_update_session_not_found(self, client, project_factory):
+        """Test updating non-existent session."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        response = client.patch(
+            f"/api/projects/{project.id}/chat/sessions/nonexistent-session",
+            json={"title": "New Title"},
+        )
+        assert response.status_code == 404
+
+    def test_update_session_project_not_found(self, client):
+        """Test updating session from non-existent project."""
+        response = client.patch(
+            "/api/projects/nonexistent/chat/sessions/session-123",
+            json={"title": "New Title"},
+        )
+        assert response.status_code == 404
+
+    def test_session_messages_persist(self, client, project_factory):
+        """Test that messages are persisted in sessions."""
+        from unittest.mock import patch, AsyncMock, MagicMock
+
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # Create a session
+        create_response = client.post(
+            f"/api/projects/{project.id}/chat/sessions",
+            json={},
+        )
+        session_id = create_response.json()["id"]
+        initial_message_count = len(create_response.json()["messages"])
+
+        # Send a chat message with mocked RAG
+        with patch("app.api.routes.chat.get_rag_service") as mock_get_rag:
+            mock_rag = MagicMock()
+            mock_rag.chat_with_context = AsyncMock(
+                return_value=RAGResponse(
+                    content="Test response",
+                    sources=[],
+                )
+            )
+            mock_get_rag.return_value = mock_rag
+
+            chat_response = client.post(
+                f"/api/projects/{project.id}/chat",
+                json={
+                    "message": "Test question",
+                    "session_id": session_id,
+                },
+            )
+            assert chat_response.status_code == 200
+
+        # Get the session and verify messages were added
+        get_response = client.get(
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
+        )
+        assert get_response.status_code == 200
+        messages = get_response.json()["messages"]
+
+        # Should have: intro + user message + assistant response
+        assert len(messages) == initial_message_count + 2
+
+        # Check the user message
+        user_messages = [m for m in messages if m["role"] == "user"]
+        assert len(user_messages) == 1
+        assert user_messages[0]["content"] == "Test question"
+
+    def test_list_sessions_returns_multiple(self, client, project_factory):
+        """Test listing multiple sessions."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # Create multiple sessions
+        for i in range(3):
+            client.post(
+                f"/api/projects/{project.id}/chat/sessions",
+                json={"title": f"Session {i}"},
+            )
+
+        # List sessions
+        response = client.get(f"/api/projects/{project.id}/chat/sessions")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert len(data["items"]) == 3
+        for item in data["items"]:
+            assert "id" in item
+            assert "title" in item
+            assert "message_count" in item
+            assert "created_at" in item
+            assert "last_message_at" in item

@@ -47,6 +47,7 @@ def init_db():
     # Import all models here so they are registered with Base
     from app.models import project  # noqa: F401
     from app.models import diagram  # noqa: F401
+    from app.models import chat  # noqa: F401
     from app.models import code_chunk  # noqa: F401
 
     Base.metadata.create_all(bind=engine)

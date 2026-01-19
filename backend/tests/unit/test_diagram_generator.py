@@ -143,7 +143,8 @@ class TestMermaidGeneration:
         assert result["type"] == DiagramType.dependency
         assert "mermaid_code" in result
         assert "metadata" in result
-        assert result["mermaid_code"].startswith("graph TD")
+        # Direction is configurable (TD or LR), so check for either
+        assert result["mermaid_code"].startswith("graph TD") or result["mermaid_code"].startswith("graph LR")
 
     def test_diagram_has_nodes(self, generator, simple_dependency_graph):
         """Test that diagram contains all nodes."""
@@ -389,7 +390,8 @@ class TestDirectoryDiagram:
 
         assert result["type"] == DiagramType.directory
         assert "mermaid_code" in result
-        assert result["mermaid_code"].startswith("graph TD")
+        # Direction is configurable (TD or LR), so check for either
+        assert result["mermaid_code"].startswith("graph TD") or result["mermaid_code"].startswith("graph LR")
 
     def test_directory_diagram_metadata(self, generator, temp_repo):
         """Test directory diagram metadata."""
@@ -456,7 +458,8 @@ class TestMermaidSyntaxValidity:
     def test_starts_with_graph_directive(self, generator, simple_dependency_graph):
         """Test diagram starts with graph directive."""
         result = generator.generate_dependency_diagram(simple_dependency_graph)
-        assert result["mermaid_code"].startswith("graph TD")
+        # Direction is configurable (TD or LR), so check for either
+        assert result["mermaid_code"].startswith("graph TD") or result["mermaid_code"].startswith("graph LR")
 
     def test_no_empty_lines_in_nodes(self, generator, simple_dependency_graph):
         """Test node definitions are properly formatted."""

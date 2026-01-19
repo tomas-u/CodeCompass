@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { ProjectListItem, ProjectStatus as ApiProjectStatus } from '@/types/api';
+import type { ProjectListItem, ProjectStatus as ApiProjectStatus, ChatSessionListItem } from '@/types/api';
 
 // Type alias for internal use and re-export for convenience
 export type Project = ProjectListItem;
 export type ProjectStatus = ApiProjectStatus;
+export type { ChatSessionListItem };
 
 export interface ChatMessage {
   id: string;
@@ -44,6 +45,9 @@ interface AppState {
   // Chat
   chatMessages: ChatMessage[];
   isAiTyping: boolean;
+  currentSessionId: string | null;
+  chatSessions: ChatSessionListItem[];
+  isLoadingSessions: boolean;
 
   // Actions
   setCurrentProject: (id: string | null) => void;
@@ -58,6 +62,10 @@ interface AppState {
   updateChatMessage: (id: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   clearChat: () => void;
   setIsAiTyping: (typing: boolean) => void;
+  setCurrentSessionId: (sessionId: string | null) => void;
+  setChatSessions: (sessions: ChatSessionListItem[]) => void;
+  setIsLoadingSessions: (loading: boolean) => void;
+  setChatMessages: (messages: ChatMessage[]) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -71,9 +79,19 @@ export const useAppStore = create<AppState>((set) => ({
   analysisProgress: null,
   chatMessages: [],
   isAiTyping: false,
+  currentSessionId: null,
+  chatSessions: [],
+  isLoadingSessions: false,
 
   // Actions
-  setCurrentProject: (id) => set({ currentProjectId: id }),
+  setCurrentProject: (id) => set({
+    currentProjectId: id,
+    // Clear chat state when changing projects
+    chatMessages: [],
+    currentSessionId: null,
+    chatSessions: [],
+    isLoadingSessions: false,
+  }),
 
   toggleChatPanel: () => set((state) => ({ isChatPanelOpen: !state.isChatPanelOpen })),
 
@@ -129,7 +147,15 @@ export const useAppStore = create<AppState>((set) => ({
     ),
   })),
 
-  clearChat: () => set({ chatMessages: [] }),
+  clearChat: () => set({ chatMessages: [], currentSessionId: null }),
 
   setIsAiTyping: (typing) => set({ isAiTyping: typing }),
+
+  setCurrentSessionId: (sessionId) => set({ currentSessionId: sessionId }),
+
+  setChatSessions: (sessions) => set({ chatSessions: sessions }),
+
+  setIsLoadingSessions: (loading) => set({ isLoadingSessions: loading }),
+
+  setChatMessages: (messages) => set({ chatMessages: messages }),
 }));

@@ -10,6 +10,7 @@ class MessageRole(str, Enum):
     """Message role."""
     user = "user"
     assistant = "assistant"
+    system = "system"  # For intro messages and context
 
 
 class ChatSource(BaseModel):
@@ -92,3 +93,14 @@ class ChatSessionListItem(BaseModel):
 class ChatSessionListResponse(BaseModel):
     """Chat session list response."""
     items: List[ChatSessionListItem]
+
+
+class ChatSessionCreate(BaseModel):
+    """Create chat session request."""
+    title: Optional[str] = None  # Optional custom title
+
+
+class ChatSessionUpdate(BaseModel):
+    """Update chat session request."""
+    title: Optional[str] = None
+    is_active: Optional[bool] = None
