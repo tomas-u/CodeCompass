@@ -249,8 +249,8 @@ export function DiagramsTab() {
     );
   }
 
-  // Check if analysis is in progress
-  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  // Check if analysis is in progress (must match backend ProjectStatus enum)
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing', 'embedding'];
   const isAnalyzing = analysisStates.includes(currentProject.status);
 
   if (!isProjectReady) {

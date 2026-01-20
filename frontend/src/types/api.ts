@@ -16,6 +16,7 @@ export type ProjectStatus =
   | 'cloning'
   | 'scanning'
   | 'analyzing'
+  | 'embedding'
   | 'ready'
   | 'failed';
 

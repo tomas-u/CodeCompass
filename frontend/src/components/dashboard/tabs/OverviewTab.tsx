@@ -15,8 +15,8 @@ export function OverviewTab() {
   const allProjects = projects.length > 0 ? projects : mockProjects;
   const currentProject = allProjects.find(p => p.id === currentProjectId) || mockProjects[0];
 
-  // Check if analysis is in progress
-  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  // Check if analysis is in progress (must match backend ProjectStatus enum)
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing', 'embedding'];
   const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
 
   // Show loading state while analyzing

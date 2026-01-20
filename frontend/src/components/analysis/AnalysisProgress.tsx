@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GitBranch, Search, Brain, FileCode, Database, Check, Loader2 } from 'lucide-react';
+import { GitBranch, Search, Brain, Database, Check, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAppStore } from '@/lib/store';
 
+// Note: These must match the backend ProjectStatus enum values
 const steps = [
   { id: 'cloning', label: 'Cloning Repository', icon: GitBranch, description: 'Downloading source code...' },
   { id: 'scanning', label: 'Scanning Files', icon: Search, description: 'Identifying code files...' },
   { id: 'analyzing', label: 'Analyzing Code', icon: Brain, description: 'Understanding code structure...' },
-  { id: 'generating', label: 'Generating Reports', icon: FileCode, description: 'Creating documentation...' },
-  { id: 'indexing', label: 'Building Index', icon: Database, description: 'Indexing for Q&A...' },
+  { id: 'embedding', label: 'Building Index', icon: Database, description: 'Creating embeddings for Q&A...' },
 ];
 
 export function AnalysisProgress() {
@@ -61,8 +61,8 @@ export function AnalysisProgress() {
           return 100;
         }
 
-        // Update step based on progress
-        const stepThresholds = [20, 40, 60, 80, 100];
+        // Update step based on progress (4 steps now)
+        const stepThresholds = [25, 50, 75, 100];
         const newStepIndex = stepThresholds.findIndex(threshold => newProgress < threshold);
         if (newStepIndex !== currentStepIndex && newStepIndex !== -1) {
           setCurrentStepIndex(newStepIndex);

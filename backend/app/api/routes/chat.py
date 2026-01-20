@@ -49,7 +49,13 @@ def generate_introduction_message(project: Project) -> str:
     # Determine primary language
     primary_lang = "code"
     if languages:
-        primary_lang = max(languages.keys(), key=lambda k: languages[k])
+        # Language values can be dicts like {"files": 10, "lines": 500} or simple counts
+        def get_file_count(lang_key):
+            val = languages[lang_key]
+            if isinstance(val, dict):
+                return val.get("files", 0)
+            return val
+        primary_lang = max(languages.keys(), key=get_file_count)
 
     intro = f"""Hi! I'm your CodeCompass assistant for **{project.name}**.
 
