@@ -120,8 +120,8 @@ export function FilesTab() {
 
   const currentProject = projects.find(p => p.id === currentProjectId);
 
-  // Check if analysis is in progress
-  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing'];
+  // Check if analysis is in progress (must match backend ProjectStatus enum)
+  const analysisStates = ['pending', 'cloning', 'scanning', 'analyzing', 'embedding'];
   const isAnalyzing = currentProject && analysisStates.includes(currentProject.status);
 
   const handleFileSelect = (node: FileNode) => {
