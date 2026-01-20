@@ -71,7 +71,8 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   // Poll project status when project is being analyzed
-  const activeStates = ['analyzing', 'scanning', 'cloning', 'pending'];
+  // Note: These must match the backend ProjectStatus enum values for in-progress states
+  const activeStates = ['pending', 'cloning', 'scanning', 'analyzing', 'embedding'];
   const shouldPoll = project ? activeStates.includes(project.status) : false;
 
   useProjectStatus({
@@ -186,10 +187,11 @@ export default function ProjectDetailPage() {
       case 'analyzing':
       case 'scanning':
       case 'cloning':
+      case 'embedding':
         return (
           <Badge variant="secondary">
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
+            {project.status === 'embedding' ? 'Indexing' : project.status.charAt(0).toUpperCase() + project.status.slice(1)}
           </Badge>
         );
       case 'failed':

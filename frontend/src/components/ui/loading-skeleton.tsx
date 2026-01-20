@@ -250,14 +250,14 @@ export function ContentLoading({ message = 'Loading data...' }: { message?: stri
 
 /**
  * Analysis steps with icons and descriptions
+ * Note: These must match the backend ProjectStatus enum values
  */
 const analysisSteps = [
   { id: 'pending', label: 'Preparing', description: 'Setting up analysis...' },
   { id: 'cloning', label: 'Cloning Repository', description: 'Downloading source code...' },
   { id: 'scanning', label: 'Scanning Files', description: 'Identifying code files...' },
   { id: 'analyzing', label: 'Analyzing Code', description: 'Understanding code structure...' },
-  { id: 'generating', label: 'Generating Reports', description: 'Creating documentation...' },
-  { id: 'indexing', label: 'Building Index', description: 'Indexing for Q&A...' },
+  { id: 'embedding', label: 'Building Index', description: 'Creating embeddings for Q&A...' },
 ];
 
 /**

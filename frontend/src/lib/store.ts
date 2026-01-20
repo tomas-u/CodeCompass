@@ -20,7 +20,8 @@ export interface ChatMessage {
 }
 
 export interface AnalysisProgress {
-  currentStep: 'cloning' | 'scanning' | 'analyzing' | 'generating' | 'indexing';
+  // Note: These must match the backend ProjectStatus enum values
+  currentStep: 'cloning' | 'scanning' | 'analyzing' | 'embedding';
   overallPercent: number;
   currentFile?: string;
   filesProcessed?: number;
