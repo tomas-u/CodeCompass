@@ -47,12 +47,12 @@ export function ReportsTab() {
     const fetchReport = async () => {
       const reportType = activeTab as ReportType;
 
-      // Skip if already loaded or loading
-      if (reports[activeTab].data || reports[activeTab].loading) return;
+      // Skip if already loaded, loading, or generating
+      if (reports[activeTab].data || reports[activeTab].loading || reports[activeTab].generating) return;
 
       setReports(prev => ({
         ...prev,
-        [activeTab]: { ...prev[activeTab], loading: true, error: null }
+        [activeTab]: { ...prev[activeTab], generating: true, loading: false, error: null }
       }));
 
       try {
