@@ -17,15 +17,15 @@
 # Backend
 cd backend && uvicorn app.main:app --reload
 
-# Frontend
-cd frontend && npm run dev
+# Frontend (prefer bun over npm)
+cd frontend && bun run dev
 
-# Full stack
-docker compose up
+# Full stack (prefer podman over docker)
+podman compose up
 
 # Tests
 cd backend && pytest
-cd frontend && npm test
+cd frontend && bun test
 ```
 
 ---
@@ -155,7 +155,7 @@ if (error) return <ErrorMessage error={error} />;
 ```bash
 # Run with coverage
 cd backend && pytest --cov=app --cov-report=term
-cd frontend && npm test -- --coverage
+cd frontend && bun test --coverage
 ```
 
 ---
