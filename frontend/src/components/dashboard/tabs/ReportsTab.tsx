@@ -52,7 +52,7 @@ export function ReportsTab() {
 
       setReports(prev => ({
         ...prev,
-        [activeTab]: { ...prev[activeTab], loading: true, error: null }
+        [activeTab]: { ...prev[activeTab], generating: true, loading: false, error: null }
       }));
 
       try {
