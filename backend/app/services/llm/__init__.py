@@ -20,7 +20,6 @@ from .factory import (
     get_provider_status,
     get_provider_health,
     close_providers,
-    ProviderConfig,
 )
 
 __all__ = [
@@ -42,5 +41,4 @@ __all__ = [
     "get_provider_status",
     "get_provider_health",
     "close_providers",
-    "ProviderConfig",
 ]

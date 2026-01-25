@@ -120,6 +120,11 @@ class TestReloadProvider:
             provider = await reload_provider(config)
 
             assert provider == mock_provider
+            mock_provider_class.assert_called_once_with(
+                api_key="sk-or-managed-key",
+                model="meta-llama/llama-3-8b",
+                base_url="https://openrouter.ai/api/v1",
+            )
 
     @pytest.mark.asyncio
     async def test_reload_openrouter_missing_api_key(self):
@@ -201,6 +206,7 @@ class TestReloadProvider:
             # Empty config should use defaults
             provider = await reload_provider({})
 
+            assert provider == mock_provider
             mock_provider_class.assert_called_once_with(
                 base_url="http://localhost:11434",
                 model="qwen2.5-coder:7b",
@@ -432,13 +438,25 @@ class TestThreadSafety:
 
     @pytest.mark.asyncio
     async def test_concurrent_reloads(self):
-        """Test that concurrent reloads are handled safely."""
+        """Test that concurrent reloads are handled safely.
+
+        Verifies that:
+        1. All reloads complete without error
+        2. Each reload creates a new provider
+        3. Old providers are closed before new ones are created
+        4. Final state has exactly one active provider
+        """
         with patch("app.services.llm.factory.OllamaProvider") as mock_provider_class:
             providers_created = []
+            close_calls = []
 
             def create_provider(*args, **kwargs):
                 provider = MagicMock()
-                provider.close = AsyncMock()
+
+                async def track_close():
+                    close_calls.append(provider)
+
+                provider.close = AsyncMock(side_effect=track_close)
                 providers_created.append(provider)
                 return provider
 
@@ -452,10 +470,24 @@ class TestThreadSafety:
                 for i in range(5)
             ]
 
-            await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks)
 
-            # Should have created multiple providers (one per reload)
+            # All reloads should complete and return providers
+            assert len(results) == 5
+            assert all(r is not None for r in results)
+
+            # Should have created 5 providers (one per reload)
             assert len(providers_created) == 5
+
+            # Due to serialization at the lock, old providers should be closed
+            # before new ones are created (except the last one which remains active)
+            # The number of close calls should be 4 (all but the final provider)
+            assert len(close_calls) == 4
+
+            # Final provider should be one of the created ones and not closed
+            final_provider = get_llm_provider()
+            assert final_provider in providers_created
+            assert final_provider not in close_calls
 
     def test_lock_exists(self):
         """Test that the provider lock exists."""

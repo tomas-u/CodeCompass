@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import threading
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -30,27 +29,6 @@ _provider_info: Dict[str, Any] = {
     "base_url": None,
     "initialized_at": None,
 }
-
-
-@dataclass
-class ProviderConfig:
-    """Configuration for LLM provider initialization."""
-
-    provider_type: str
-    model: str
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
-    api_format: Optional[str] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
-        return {
-            "provider_type": self.provider_type,
-            "model": self.model,
-            "base_url": self.base_url,
-            "api_key": self.api_key,
-            "api_format": self.api_format,
-        }
 
 
 def get_llm_provider() -> LLMProvider:
@@ -119,7 +97,6 @@ async def reload_provider(config: Dict[str, Any]) -> LLMProvider:
             - model: str
             - base_url: Optional[str]
             - api_key: Optional[str] (required for OpenRouter)
-            - api_format: Optional[str] (ollama or openai)
 
     Returns:
         New LLMProvider instance
@@ -202,15 +179,22 @@ def reload_provider_sync(config: Dict[str, Any]) -> LLMProvider:
 
     Returns:
         New LLMProvider instance
+
+    Raises:
+        RuntimeError: If called from an async context (use reload_provider instead)
     """
     try:
-        loop = asyncio.get_running_loop()
-        # If we're in an async context, create a task
-        future = asyncio.ensure_future(reload_provider(config))
-        return asyncio.get_event_loop().run_until_complete(future)
+        # Detect if we're already in an async context
+        asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop, create one
+        # No running loop, safe to create one
         return asyncio.run(reload_provider(config))
+    else:
+        # Running event loop detected: this sync wrapper must not be used here
+        raise RuntimeError(
+            "reload_provider_sync cannot be called from an async context; "
+            "use the async 'reload_provider' function instead."
+        )
 
 
 def get_provider_status() -> Dict[str, Any]:
@@ -240,17 +224,35 @@ def get_provider_status() -> Dict[str, Any]:
 async def get_provider_health() -> Dict[str, Any]:
     """Get provider health status including connectivity check.
 
+    Note: Captures provider reference under lock, then releases lock before
+    the health check. This means the result may be for a provider that was
+    just replaced, but avoids blocking other operations during the check.
+
     Returns:
         Dict with status info and health check result
     """
-    status = get_provider_status()
+    global _llm_provider, _provider_info
 
-    if status["status"] == "not_initialized":
-        return {**status, "healthy": False}
+    # Capture provider and status under lock to avoid race conditions
+    with _provider_lock:
+        if _llm_provider is None:
+            return {
+                "provider_type": None,
+                "model": None,
+                "base_url": None,
+                "initialized_at": None,
+                "status": "not_initialized",
+                "healthy": False,
+            }
 
-    # Perform health check
+        provider = _llm_provider
+        status: Dict[str, Any] = {
+            **_provider_info,
+            "status": "initialized",
+        }
+
+    # Perform health check outside the lock to avoid blocking other operations
     try:
-        provider = get_llm_provider()
         healthy = await provider.health_check()
         return {
             **status,

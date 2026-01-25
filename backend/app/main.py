@@ -50,19 +50,21 @@ async def initialize_llm_from_settings():
             settings_model = repo.get_llm_settings()
 
             if settings_model:
+                # Decrypt API key if present
+                api_key = None
+                if settings_model.api_key_encrypted:
+                    try:
+                        api_key = repo.get_decrypted_api_key(settings_model)
+                    except Exception as e:
+                        logging.warning(f"Failed to decrypt API key, using without: {e}")
+
                 # Build config from database settings
                 config = {
                     "provider_type": settings_model.provider_type.value,
                     "model": settings_model.model,
                     "base_url": settings_model.base_url,
+                    "api_key": api_key,
                 }
-
-                # Decrypt API key if present
-                if settings_model.api_key_encrypted:
-                    try:
-                        config["api_key"] = repo.get_decrypted_api_key(settings_model)
-                    except Exception as e:
-                        logging.warning(f"Failed to decrypt API key, using without: {e}")
 
                 await reload_provider(config)
                 print(
