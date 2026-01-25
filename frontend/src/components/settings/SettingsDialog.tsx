@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -42,7 +42,13 @@ export function SettingsDialog({
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
+
+  // Sync activeTab with defaultTab when dialog opens or defaultTab changes
+  useEffect(() => {
+    if (open) {
+      setActiveTab(defaultTab);
+    }
+  }, [open, defaultTab]);
 
   // Handle tab change
   const handleTabChange = (value: string) => {
@@ -52,7 +58,6 @@ export function SettingsDialog({
   // Handle cancel - discard changes and close
   const handleCancel = () => {
     // TODO: Reset form state when store is implemented
-    setIsDirty(false);
     onOpenChange(false);
   };
 
@@ -75,7 +80,6 @@ export function SettingsDialog({
       // TODO: Implement save via store when available
       // For now, simulate a save
       await new Promise((resolve) => setTimeout(resolve, 500));
-      setIsDirty(false);
       onOpenChange(false);
     } finally {
       setIsSaving(false);
@@ -105,7 +109,7 @@ export function SettingsDialog({
 
           <ScrollArea className="flex-1 mt-4">
             <TabsContent value="llm" className="mt-0 min-h-[300px]">
-              <LLMSettingsPanel onDirtyChange={setIsDirty} />
+              <LLMSettingsPanel />
             </TabsContent>
 
             <TabsContent value="embedding" className="mt-0 min-h-[300px]">
@@ -144,14 +148,10 @@ export function SettingsDialog({
 // Placeholder Panels (to be replaced with full implementations)
 // ============================================================================
 
-interface LLMSettingsPanelProps {
-  onDirtyChange?: (dirty: boolean) => void;
-}
-
 /**
  * LLM Settings Panel - placeholder for issue #87
  */
-function LLMSettingsPanel({ onDirtyChange }: LLMSettingsPanelProps) {
+function LLMSettingsPanel() {
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
       <div className="text-center text-muted-foreground py-8">
