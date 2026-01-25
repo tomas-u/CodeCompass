@@ -1,7 +1,19 @@
 """Settings schemas."""
 
-from pydantic import BaseModel
-from typing import Optional, List, Dict
+from datetime import datetime
+from enum import Enum
+from typing import Optional, List, Literal
+
+from pydantic import BaseModel, Field
+
+
+class ProviderType(str, Enum):
+    """LLM provider types for configuration."""
+
+    OLLAMA_CONTAINER = "ollama_container"
+    OLLAMA_EXTERNAL = "ollama_external"
+    OPENROUTER_BYOK = "openrouter_byok"
+    OPENROUTER_MANAGED = "openrouter_managed"
 
 
 class LLMCapabilities(BaseModel):
@@ -121,3 +133,88 @@ class HardwareInfoResponse(BaseModel):
     gpu: GPUInfoResponse
     cpu: CPUInfoResponse
     recommendations: RecommendationsResponse
+
+
+# LLM Configuration schemas for persistence
+class LLMConfigUpdate(BaseModel):
+    """Request to update LLM configuration."""
+
+    provider_type: ProviderType = Field(
+        ...,
+        description="Type of LLM provider",
+    )
+    model: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Model name/identifier",
+    )
+    base_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Base URL for the provider API",
+    )
+    api_format: Optional[Literal["ollama", "openai"]] = Field(
+        None,
+        description="API format for external LLM providers",
+    )
+    api_key: Optional[str] = Field(
+        None,
+        description="API key (plain text, will be encrypted before storage)",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "provider_type": "openrouter_byok",
+                "model": "anthropic/claude-3-haiku",
+                "base_url": "https://openrouter.ai/api/v1",
+                "api_key": "sk-or-v1-xxxxx",
+            }
+        }
+
+
+class LLMConfigResponse(BaseModel):
+    """Response with LLM configuration."""
+
+    provider_type: ProviderType = Field(
+        ...,
+        description="Type of LLM provider",
+    )
+    model: str = Field(
+        ...,
+        description="Model name/identifier",
+    )
+    base_url: Optional[str] = Field(
+        None,
+        description="Base URL for the provider API",
+    )
+    api_format: Optional[str] = Field(
+        None,
+        description="API format (ollama or openai)",
+    )
+    has_api_key: bool = Field(
+        False,
+        description="Whether an API key is configured (never returns actual key)",
+    )
+    status: str = Field(
+        "unknown",
+        description="Current provider status",
+    )
+    last_health_check: Optional[datetime] = Field(
+        None,
+        description="Timestamp of last health check",
+    )
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "provider_type": "ollama_container",
+                "model": "qwen2.5-coder:7b",
+                "base_url": "http://localhost:11434",
+                "has_api_key": False,
+                "status": "ready",
+                "last_health_check": "2024-01-25T12:00:00Z",
+            }
+        }
