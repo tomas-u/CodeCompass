@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.api.routes import projects, analysis, reports, diagrams, files, search, chat, settings_routes, admin
-from app.database import init_db
+from app.database import init_db, SessionLocal
+from app.services.llm import reload_provider, close_providers
 
 # Configure logging
 logging.basicConfig(
@@ -28,9 +29,63 @@ app = FastAPI(
 # Database initialization on startup
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on application startup."""
+    """Initialize database and LLM provider on application startup."""
     init_db()
     print(f"✓ Database initialized: {settings.database_name}")
+
+    # Initialize LLM provider from persisted settings
+    await initialize_llm_from_settings()
+
+
+async def initialize_llm_from_settings():
+    """Initialize LLM provider from database settings or environment defaults."""
+    try:
+        from app.repositories.settings_repository import SettingsRepository
+        from app.services.secrets_service import get_secrets_service
+
+        db = SessionLocal()
+        try:
+            secrets = get_secrets_service()
+            repo = SettingsRepository(db=db, secrets=secrets)
+            settings_model = repo.get_llm_settings()
+
+            if settings_model:
+                # Build config from database settings
+                config = {
+                    "provider_type": settings_model.provider_type.value,
+                    "model": settings_model.model,
+                    "base_url": settings_model.base_url,
+                }
+
+                # Decrypt API key if present
+                if settings_model.api_key_encrypted:
+                    try:
+                        config["api_key"] = repo.get_decrypted_api_key(settings_model)
+                    except Exception as e:
+                        logging.warning(f"Failed to decrypt API key, using without: {e}")
+
+                await reload_provider(config)
+                print(
+                    f"✓ LLM provider initialized from settings: "
+                    f"{settings_model.provider_type.value} / {settings_model.model}"
+                )
+            else:
+                # No saved settings, use environment defaults
+                print("✓ LLM provider using environment defaults (no saved settings)")
+
+        finally:
+            db.close()
+
+    except Exception as e:
+        logging.warning(f"Could not initialize LLM from settings: {e}")
+        print("✓ LLM provider using environment defaults")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on application shutdown."""
+    await close_providers()
+    print("✓ Providers closed")
 
 # Configure CORS
 app.add_middleware(

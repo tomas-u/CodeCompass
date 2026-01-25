@@ -36,7 +36,7 @@ from app.schemas.settings import (
 )
 from app.config import settings
 from app.database import get_db
-from app.services.llm import get_llm_provider, get_embedding_provider, reset_providers
+from app.services.llm import get_llm_provider, get_embedding_provider, reload_provider
 from app.services.llm.ollama_provider import OllamaProvider
 from app.services.hardware_service import detect_hardware
 from app.services.settings_service import get_settings_service
@@ -384,10 +384,13 @@ async def update_llm_config(
         api_key=config.api_key,
     )
 
-    # Hot-reload (limited): Reset provider singletons so the next request creates new ones.
-    # NOTE: This does NOT explicitly close any existing provider connections/resources;
-    #       full hot-reload with proper teardown/cleanup is tracked in issue #84.
-    reset_providers()
+    # Hot-reload: Properly close existing provider and create new one with updated config
+    await reload_provider({
+        "provider_type": config.provider_type.value,
+        "model": config.model,
+        "base_url": config.base_url,
+        "api_key": config.api_key,
+    })
 
     logger.info(
         f"LLM config updated: provider={config.provider_type.value}, model={config.model}"
