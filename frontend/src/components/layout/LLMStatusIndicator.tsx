@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api';
 import {
   Tooltip,
   TooltipContent,
@@ -36,6 +37,8 @@ const providerDisplayNames: Record<string, string> = {
 };
 
 // Status colors
+// Note: 'unknown' status uses ring styling (outline dot) applied in component logic,
+// so its 'dot' value is not used directly but kept for fallback consistency.
 const statusColors: Record<LLMStatus, { dot: string; text: string }> = {
   ready: {
     dot: 'bg-green-500',
@@ -50,7 +53,7 @@ const statusColors: Record<LLMStatus, { dot: string; text: string }> = {
     text: 'text-red-600 dark:text-red-400',
   },
   unknown: {
-    dot: 'bg-gray-400 dark:bg-gray-500',
+    dot: '', // Overridden in component to use ring styling for outline effect
     text: 'text-gray-500 dark:text-gray-400',
   },
 };
@@ -78,7 +81,6 @@ export function LLMStatusIndicator({
 
     try {
       setIsLoading(true);
-      const { api } = await import('@/lib/api');
       const response = await api.getSettings();
 
       // Map API response to our config format
@@ -124,6 +126,7 @@ export function LLMStatusIndicator({
   useEffect(() => {
     if (propConfig) {
       setConfig(propConfig);
+      setIsLoading(false);
     }
   }, [propConfig]);
 
@@ -134,15 +137,19 @@ export function LLMStatusIndicator({
     }
   }, [propError]);
 
-  // Fetch config on mount and periodically
+  // Fetch config on mount and periodically (only if not provided via props)
   useEffect(() => {
+    if (propConfig) {
+      return; // Skip fetching and polling when config is provided via props
+    }
+
     fetchConfig();
 
     // Poll for status updates every 30 seconds
     const intervalId = setInterval(fetchConfig, 30000);
 
     return () => clearInterval(intervalId);
-  }, [fetchConfig]);
+  }, [fetchConfig, propConfig]);
 
   // Determine effective status
   const effectiveStatus: LLMStatus = isLoading
@@ -242,18 +249,30 @@ function truncateModel(model: string, maxLength: number): string {
   return model.slice(0, maxLength - 3) + '...';
 }
 
-// Helper to truncate URL
+// Helper to truncate URL - shows as much as possible within maxLength
 function truncateUrl(url: string, maxLength: number): string {
   if (url.length <= maxLength) return url;
-  // Try to show the domain and truncate the path
+
   try {
     const parsed = new URL(url);
-    const domain = parsed.hostname;
-    if (domain.length > maxLength - 3) {
-      return domain.slice(0, maxLength - 3) + '...';
+    // Try to show hostname:port first
+    const hostWithPort = parsed.host; // includes port if present
+
+    if (hostWithPort.length <= maxLength) {
+      // Can fit host:port, try to add path
+      const remaining = maxLength - hostWithPort.length;
+      if (remaining > 4 && parsed.pathname.length > 1) {
+        // Add as much of the path as fits
+        const pathPart = parsed.pathname.slice(0, remaining - 3) + '...';
+        return hostWithPort + pathPart;
+      }
+      return hostWithPort;
     }
-    return domain + '...';
+
+    // Host alone is too long, truncate it
+    return hostWithPort.slice(0, maxLength - 3) + '...';
   } catch {
+    // Invalid URL, just truncate the string
     return url.slice(0, maxLength - 3) + '...';
   }
 }
