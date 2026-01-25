@@ -219,3 +219,110 @@ class LLMConfigResponse(BaseModel):
                 "last_health_check": "2024-01-25T12:00:00Z",
             }
         }
+
+
+class LLMConfigUpdateResponse(BaseModel):
+    """Response after updating LLM configuration."""
+
+    success: bool = Field(..., description="Whether the update succeeded")
+    provider_type: ProviderType = Field(..., description="Type of LLM provider")
+    model: str = Field(..., description="Model name/identifier")
+    status: str = Field("unknown", description="Current provider status")
+    reloaded: bool = Field(False, description="Whether the provider was reloaded")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "provider_type": "ollama_container",
+                "model": "qwen2.5-coder:7b",
+                "status": "ready",
+                "reloaded": True,
+            }
+        }
+
+
+# Validation schemas
+class ValidationDetailsResponse(BaseModel):
+    """Details from validation response."""
+
+    model_name: Optional[str] = None
+    context_length: Optional[int] = None
+    pricing: Optional[dict] = None
+    available_models: Optional[List[str]] = None
+    model_count: Optional[int] = None
+
+
+class LLMValidationResponse(BaseModel):
+    """Response from LLM configuration validation."""
+
+    valid: bool = Field(..., description="Whether the configuration is valid")
+    provider_status: str = Field(..., description="Status of the provider")
+    model_available: bool = Field(..., description="Whether the model is available")
+    test_response_ms: Optional[int] = Field(
+        None, description="Response time in milliseconds"
+    )
+    error: Optional[str] = Field(None, description="Error message if validation failed")
+    details: Optional[ValidationDetailsResponse] = Field(
+        None, description="Additional validation details"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "valid": True,
+                "provider_status": "ready",
+                "model_available": True,
+                "test_response_ms": 450,
+                "details": {
+                    "model_name": "anthropic/claude-3-haiku",
+                    "context_length": 200000,
+                    "pricing": {
+                        "input_per_million": 0.25,
+                        "output_per_million": 1.25,
+                    },
+                },
+            }
+        }
+
+
+# OpenRouter models schemas
+class OpenRouterPricing(BaseModel):
+    """OpenRouter model pricing."""
+
+    input_per_million: float = Field(..., description="Cost per million input tokens")
+    output_per_million: float = Field(..., description="Cost per million output tokens")
+
+
+class OpenRouterModel(BaseModel):
+    """OpenRouter model information."""
+
+    id: str = Field(..., description="Model ID (e.g., anthropic/claude-3.5-sonnet)")
+    name: str = Field(..., description="Display name")
+    provider: str = Field(..., description="Provider name (e.g., anthropic)")
+    context_length: int = Field(..., description="Maximum context length in tokens")
+    pricing: OpenRouterPricing = Field(..., description="Model pricing")
+    capabilities: List[str] = Field(..., description="Model capabilities")
+    description: Optional[str] = Field(None, description="Model description")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": "anthropic/claude-3.5-sonnet",
+                "name": "Claude 3.5 Sonnet",
+                "provider": "anthropic",
+                "context_length": 200000,
+                "pricing": {
+                    "input_per_million": 3.0,
+                    "output_per_million": 15.0,
+                },
+                "capabilities": ["chat", "code", "function_calling"],
+                "description": "Most capable Claude model",
+            }
+        }
+
+
+class OpenRouterModelsResponse(BaseModel):
+    """Response with list of OpenRouter models."""
+
+    models: List[OpenRouterModel] = Field(..., description="List of available models")

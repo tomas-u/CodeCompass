@@ -10,7 +10,7 @@ from .openrouter_provider import (
     OpenRouterModelInfo,
 )
 from .embedding_provider import EmbeddingServiceProvider
-from .factory import get_llm_provider, get_embedding_provider, get_vector_service
+from .factory import get_llm_provider, get_embedding_provider, get_vector_service, reset_providers
 
 __all__ = [
     "LLMProvider",
@@ -25,4 +25,5 @@ __all__ = [
     "get_llm_provider",
     "get_embedding_provider",
     "get_vector_service",
+    "reset_providers",
 ]
