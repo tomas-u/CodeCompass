@@ -42,3 +42,4 @@ watchfiles==1.1.1
 websockets==16.0
 networkx==3.4.2
 qdrant-client>=1.7.0
+cryptography>=42.0.0
