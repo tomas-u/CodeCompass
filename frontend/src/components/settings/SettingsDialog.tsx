@@ -13,6 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { LLMSettingsPanel } from './LLMSettingsPanel';
 
 export type SettingsTab = 'llm' | 'embedding' | 'analysis';
 
@@ -147,25 +148,6 @@ export function SettingsDialog({
 // ============================================================================
 // Placeholder Panels (to be replaced with full implementations)
 // ============================================================================
-
-/**
- * LLM Settings Panel - placeholder for issue #87
- */
-function LLMSettingsPanel() {
-  return (
-    <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
-      <div className="text-center text-muted-foreground py-8">
-        <p className="text-lg font-medium">LLM Configuration</p>
-        <p className="text-sm mt-2">
-          Configure your LLM provider settings here.
-        </p>
-        <p className="text-xs mt-4 text-muted-foreground/70">
-          Full implementation in issue #87
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Embedding Settings Panel - placeholder for future implementation
