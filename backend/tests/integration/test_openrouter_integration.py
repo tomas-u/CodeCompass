@@ -7,7 +7,12 @@ They are skipped in CI unless the key is available.
 import os
 import pytest
 
-from app.services.llm.openrouter_provider import OpenRouterProvider
+from app.services.llm.openrouter_provider import (
+    OpenRouterProvider,
+    OpenRouterError,
+    OpenRouterAuthError,
+    OpenRouterRateLimitError,
+)
 from app.services.llm.base import ChatMessage
 
 
@@ -122,9 +127,8 @@ class TestOpenRouterIntegrationErrors:
         try:
             messages = [ChatMessage(role="user", content="Hello")]
 
-            # Should handle gracefully (may return error or empty)
-            # Exact behavior depends on OpenRouter's handling
-            with pytest.raises(Exception):
+            # OpenRouter returns 4xx for invalid models, handled as OpenRouterError
+            with pytest.raises(OpenRouterError):
                 await provider.chat(messages)
         finally:
             await provider.close()

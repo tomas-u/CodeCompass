@@ -1,9 +1,7 @@
 """Unit tests for the OpenRouter LLM provider."""
 
-import json
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
-from typing import AsyncIterator
 
 import httpx
 

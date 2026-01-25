@@ -124,7 +124,7 @@ class OpenRouterProvider(LLMProvider):
         try:
             error_data = response.json()
             error_msg = error_data.get("error", {}).get("message", response.text)
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             error_msg = response.text
 
         # Never log the API key - redact any potential key in error messages
@@ -393,8 +393,12 @@ class OpenRouterProvider(LLMProvider):
     async def list_models_detailed(self) -> List[OpenRouterModelInfo]:
         """List available models with detailed OpenRouter-specific info.
 
+        This is an OpenRouter-specific extension and is not part of the
+        standard LLMProvider interface. Callers should guard usage of this
+        method to OpenRouterProvider instances only.
+
         Returns:
-            List of OpenRouterModelInfo objects
+            List of OpenRouterModelInfo objects with pricing and context info.
         """
         try:
             client = await self._get_client()
