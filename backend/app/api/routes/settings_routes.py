@@ -19,10 +19,16 @@ from app.schemas.settings import (
     EmbeddingSettings,
     AnalysisSettings,
     ModelInfo,
+    HardwareInfoResponse,
+    GPUInfoResponse,
+    CPUInfoResponse,
+    RecommendationsResponse,
+    ModelRecommendationResponse,
 )
 from app.config import settings
 from app.services.llm import get_llm_provider, get_embedding_provider
 from app.services.llm.ollama_provider import OllamaProvider
+from app.services.hardware_service import detect_hardware
 
 logger = logging.getLogger(__name__)
 
@@ -279,3 +285,38 @@ async def delete_model(model_name: str):
         )
     else:
         raise HTTPException(status_code=500, detail=f"Failed to delete model '{model_name}'")
+
+
+@router.get("/hardware", response_model=HardwareInfoResponse)
+async def get_hardware_info():
+    """Get hardware information and model recommendations.
+
+    Detects GPU, CPU, and RAM to provide intelligent model recommendations.
+    """
+    hardware = await detect_hardware()
+
+    return HardwareInfoResponse(
+        gpu=GPUInfoResponse(
+            detected=hardware.gpu.detected,
+            name=hardware.gpu.name,
+            vendor=hardware.gpu.vendor,
+            vram_total_gb=hardware.gpu.vram_total_gb,
+            vram_available_gb=hardware.gpu.vram_available_gb,
+            compute_capability=hardware.gpu.compute_capability,
+        ),
+        cpu=CPUInfoResponse(
+            name=hardware.cpu.name,
+            cores=hardware.cpu.cores,
+            threads=hardware.cpu.threads,
+            ram_total_gb=hardware.cpu.ram_total_gb,
+            ram_available_gb=hardware.cpu.ram_available_gb,
+        ),
+        recommendations=RecommendationsResponse(
+            max_model_params=hardware.recommendations.max_model_params,
+            recommended_models=[
+                ModelRecommendationResponse(name=m.name, reason=m.reason)
+                for m in hardware.recommendations.recommended_models
+            ],
+            inference_mode=hardware.recommendations.inference_mode,
+        ),
+    )

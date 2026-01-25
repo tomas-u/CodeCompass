@@ -81,3 +81,43 @@ class TestConnectionResponse(BaseModel):
     response_time_ms: int
     model_info: Optional[ModelInfo] = None
     error: Optional[str] = None
+
+
+# Hardware detection schemas
+class GPUInfoResponse(BaseModel):
+    """GPU information response."""
+    detected: bool
+    name: Optional[str] = None
+    vendor: Optional[str] = None
+    vram_total_gb: Optional[float] = None
+    vram_available_gb: Optional[float] = None
+    compute_capability: Optional[str] = None
+
+
+class CPUInfoResponse(BaseModel):
+    """CPU information response."""
+    name: str
+    cores: int
+    threads: int
+    ram_total_gb: float
+    ram_available_gb: float
+
+
+class ModelRecommendationResponse(BaseModel):
+    """Model recommendation response."""
+    name: str
+    reason: str
+
+
+class RecommendationsResponse(BaseModel):
+    """Hardware recommendations response."""
+    max_model_params: str
+    recommended_models: List[ModelRecommendationResponse]
+    inference_mode: str
+
+
+class HardwareInfoResponse(BaseModel):
+    """Hardware information response."""
+    gpu: GPUInfoResponse
+    cpu: CPUInfoResponse
+    recommendations: RecommendationsResponse
