@@ -5,7 +5,8 @@ from app.models.diagram import Diagram
 from app.models.chat import ChatSession, ChatMessage, MessageRole
 from app.models.code_chunk import CodeChunk, ChunkType
 from app.models.report import Report
-from app.models.settings import LLMSettingsModel, ProviderType
+from app.models.settings import LLMSettingsModel
+from app.schemas.settings import ProviderType
 
 __all__ = [
     "Project",

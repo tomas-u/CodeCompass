@@ -160,6 +160,7 @@ class LLMConfigUpdate(BaseModel):
     )
     api_key: Optional[str] = Field(
         None,
+        max_length=1000,
         description="API key (plain text, will be encrypted before storage)",
     )
 

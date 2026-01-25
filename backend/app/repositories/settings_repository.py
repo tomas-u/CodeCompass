@@ -6,7 +6,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.settings import LLMSettingsModel, ProviderType
+from app.models.settings import LLMSettingsModel
+from app.schemas.settings import ProviderType
 from app.services.secrets_service import SecretsService, InvalidToken
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class SettingsRepository:
             logger.info("Creating default LLM settings")
             settings = LLMSettingsModel(
                 id=DEFAULT_SETTINGS_ID,
-                provider_type=ProviderType.OLLAMA_CONTAINER.value,
+                provider_type=ProviderType.OLLAMA_CONTAINER,
                 model="qwen2.5-coder:7b",
                 base_url="http://localhost:11434",
             )
@@ -89,7 +90,7 @@ class SettingsRepository:
         settings = self.get_or_create_llm_settings()
 
         # Update fields
-        settings.provider_type = provider_type.value
+        settings.provider_type = provider_type
         settings.model = model
         settings.base_url = base_url
         settings.api_format = api_format

@@ -1,19 +1,10 @@
 """Settings database models."""
 
-from enum import Enum
-from sqlalchemy import Column, String, DateTime, Boolean, Text
+from sqlalchemy import Column, String, DateTime, Boolean, Text, Enum as SQLEnum
 from sqlalchemy.sql import func
 
 from app.database import Base
-
-
-class ProviderType(str, Enum):
-    """LLM provider types."""
-
-    OLLAMA_CONTAINER = "ollama_container"
-    OLLAMA_EXTERNAL = "ollama_external"
-    OPENROUTER_BYOK = "openrouter_byok"
-    OPENROUTER_MANAGED = "openrouter_managed"
+from app.schemas.settings import ProviderType
 
 
 class LLMSettingsModel(Base):
@@ -30,9 +21,9 @@ class LLMSettingsModel(Base):
 
     # Provider configuration
     provider_type = Column(
-        String(50),
+        SQLEnum(ProviderType),
         nullable=False,
-        default=ProviderType.OLLAMA_CONTAINER.value,
+        default=ProviderType.OLLAMA_CONTAINER,
     )
     model = Column(String(200), nullable=False, default="qwen2.5-coder:7b")
     base_url = Column(String(500), nullable=True)
@@ -41,9 +32,9 @@ class LLMSettingsModel(Base):
     # Encrypted API key (for OpenRouter providers)
     api_key_encrypted = Column(Text, nullable=True)
 
-    # Timestamps
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, onupdate=func.now(), nullable=True)
+    # Timestamps (consistent with Project model)
+    created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())
+    updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now(), server_default=func.now())
 
     # Health check cache
     last_health_check = Column(DateTime, nullable=True)
@@ -59,7 +50,7 @@ class LLMSettingsModel(Base):
         """Convert model to dictionary (excludes encrypted API key)."""
         return {
             "id": self.id,
-            "provider_type": self.provider_type,
+            "provider_type": self.provider_type.value if self.provider_type else None,
             "model": self.model,
             "base_url": self.base_url,
             "api_format": self.api_format,

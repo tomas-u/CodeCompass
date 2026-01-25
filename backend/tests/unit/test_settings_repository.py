@@ -2,13 +2,13 @@
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models.settings import LLMSettingsModel, ProviderType
+from app.models.settings import LLMSettingsModel
+from app.schemas.settings import ProviderType
 from app.repositories.settings_repository import SettingsRepository, DEFAULT_SETTINGS_ID
 from app.services.secrets_service import SecretsService, InvalidToken
 
@@ -49,7 +49,7 @@ class TestGetLLMSettings:
         # Create settings directly
         settings = LLMSettingsModel(
             id=DEFAULT_SETTINGS_ID,
-            provider_type=ProviderType.OLLAMA_CONTAINER.value,
+            provider_type=ProviderType.OLLAMA_CONTAINER,
             model="test-model",
         )
         db_session.add(settings)
@@ -70,7 +70,7 @@ class TestGetOrCreateLLMSettings:
 
         assert result is not None
         assert result.id == DEFAULT_SETTINGS_ID
-        assert result.provider_type == ProviderType.OLLAMA_CONTAINER.value
+        assert result.provider_type == ProviderType.OLLAMA_CONTAINER
         assert result.model == "qwen2.5-coder:7b"
         assert result.base_url == "http://localhost:11434"
 
@@ -79,7 +79,7 @@ class TestGetOrCreateLLMSettings:
         # Create custom settings
         settings = LLMSettingsModel(
             id=DEFAULT_SETTINGS_ID,
-            provider_type=ProviderType.OPENROUTER_BYOK.value,
+            provider_type=ProviderType.OPENROUTER_BYOK,
             model="custom-model",
             base_url="https://custom.url",
         )
@@ -88,7 +88,7 @@ class TestGetOrCreateLLMSettings:
 
         result = repository.get_or_create_llm_settings()
 
-        assert result.provider_type == ProviderType.OPENROUTER_BYOK.value
+        assert result.provider_type == ProviderType.OPENROUTER_BYOK
         assert result.model == "custom-model"
         assert result.base_url == "https://custom.url"
 
@@ -105,7 +105,7 @@ class TestSaveLLMSettings:
             api_format="ollama",
         )
 
-        assert result.provider_type == ProviderType.OLLAMA_EXTERNAL.value
+        assert result.provider_type == ProviderType.OLLAMA_EXTERNAL
         assert result.model == "llama3:8b"
         assert result.base_url == "http://192.168.1.100:11434"
         assert result.api_format == "ollama"
@@ -200,7 +200,7 @@ class TestSaveLLMSettings:
         )
 
         # Should be updated
-        assert result.provider_type == ProviderType.OPENROUTER_BYOK.value
+        assert result.provider_type == ProviderType.OPENROUTER_BYOK
         assert result.model == "updated-model"
         assert result.base_url == "https://new.url"
 
@@ -241,7 +241,7 @@ class TestGetDecryptedApiKey:
         # Create settings with corrupted encrypted key
         settings = LLMSettingsModel(
             id=DEFAULT_SETTINGS_ID,
-            provider_type=ProviderType.OPENROUTER_BYOK.value,
+            provider_type=ProviderType.OPENROUTER_BYOK,
             model="test",
             api_key_encrypted="corrupted-not-valid-encrypted-data",
         )
@@ -303,7 +303,7 @@ class TestLLMSettingsModel:
         """Test that to_dict excludes the encrypted API key."""
         settings = LLMSettingsModel(
             id="test",
-            provider_type=ProviderType.OPENROUTER_BYOK.value,
+            provider_type=ProviderType.OPENROUTER_BYOK,
             model="test-model",
             api_key_encrypted=secrets_service.encrypt("secret-key"),
         )
@@ -317,7 +317,7 @@ class TestLLMSettingsModel:
         """Test that has_api_key is False when no key is stored."""
         settings = LLMSettingsModel(
             id="test",
-            provider_type=ProviderType.OLLAMA_CONTAINER.value,
+            provider_type=ProviderType.OLLAMA_CONTAINER,
             model="test-model",
         )
 
@@ -329,12 +329,12 @@ class TestLLMSettingsModel:
         """Test string representation."""
         settings = LLMSettingsModel(
             id="test",
-            provider_type=ProviderType.OLLAMA_CONTAINER.value,
+            provider_type=ProviderType.OLLAMA_CONTAINER,
             model="test-model",
         )
 
         result = repr(settings)
 
         assert "test" in result
-        assert "ollama_container" in result
+        assert "OLLAMA_CONTAINER" in result
         assert "test-model" in result
