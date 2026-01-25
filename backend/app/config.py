@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Debug settings
     debug_analysis_delay: int = 0  # Seconds to delay between analysis phases (0 to disable)
 
+    # Secrets encryption
+    secret_key: Optional[str] = None  # CODECOMPASS_SECRET_KEY - for encrypting API keys
+
     # Limits
     max_file_size_mb: int = 10
     max_repo_size_mb: int = 1000
