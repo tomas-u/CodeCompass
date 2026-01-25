@@ -5,11 +5,8 @@ Uses fixtures from conftest.py:
 - test_db: Test database session
 """
 
-import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from dataclasses import dataclass
-
-from app.schemas.settings import ProviderType
 
 
 # Helper dataclass for mocking ModelInfo
@@ -335,6 +332,28 @@ class TestListOpenRouterModels:
 
         assert response.status_code == 401
         assert "Authentication failed" in response.json()["detail"]
+
+    def test_list_models_with_stored_key_decryption_failure(self, client, test_db):
+        """Test listing models when stored API key cannot be decrypted."""
+        from app.models.settings import LLMSettingsModel
+        from app.schemas.settings import ProviderType
+
+        # Create settings with corrupted encrypted key
+        settings = LLMSettingsModel(
+            id="default",
+            provider_type=ProviderType.OPENROUTER_BYOK,
+            model="test-model",
+            api_key_encrypted="corrupted-invalid-encrypted-data",
+        )
+        test_db.add(settings)
+        test_db.commit()
+
+        # Try to list models without header key (should try to use stored key)
+        response = client.get("/api/settings/openrouter/models")
+
+        # Should return 500 with helpful error message
+        assert response.status_code == 500
+        assert "corrupted" in response.json()["detail"].lower()
 
 
 class TestInputValidation:

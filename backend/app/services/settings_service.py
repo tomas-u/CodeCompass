@@ -13,7 +13,6 @@ from app.models.settings import LLMSettingsModel
 from app.schemas.settings import ProviderType
 from app.repositories.settings_repository import SettingsRepository
 from app.services.secrets_service import SecretsService, get_secrets_service
-from app.services.llm.base import LLMProvider
 from app.services.llm.ollama_provider import OllamaProvider
 from app.services.llm.openrouter_provider import (
     OpenRouterProvider,
@@ -25,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Validation constants
 BLOCKED_HOSTS = {"ngrok.io", "ngrok.app", "localtunnel.me", "loca.lt", "serveo.net"}
-MODEL_NAME_PATTERN = re.compile(r"^[\w\-\./:\d]+$")
+# Allows: alphanumeric, hyphens, underscores, dots (for versions), slashes, colons
+MODEL_NAME_PATTERN = re.compile(r"^[\w\-./:]+$")
 OPENROUTER_KEY_PREFIX = "sk-or-"
 OPENROUTER_KEY_MIN_LENGTH = 20
 
@@ -321,17 +321,16 @@ class SettingsService:
 
         url = base_url or "https://openrouter.ai/api/v1"
 
-        try:
-            provider = OpenRouterProvider(
-                api_key=api_key,
-                model=model,
-                base_url=url,
-            )
+        provider = OpenRouterProvider(
+            api_key=api_key,
+            model=model,
+            base_url=url,
+        )
 
+        try:
             # Health check (validates API key)
             is_healthy = await provider.health_check()
             if not is_healthy:
-                await provider.close()
                 return ValidationResult(
                     valid=False,
                     provider_status="unavailable",
@@ -345,7 +344,6 @@ class SettingsService:
             model_info = next((m for m in models if m.id == model), None)
 
             elapsed_ms = int((time.time() - start_time) * 1000)
-            await provider.close()
 
             details = None
             if model_info:
@@ -384,6 +382,8 @@ class SettingsService:
                 test_response_ms=elapsed_ms,
                 error=str(e),
             )
+        finally:
+            await provider.close()
 
     # -------------------------------------------------------------------------
     # Settings management
@@ -464,10 +464,9 @@ class SettingsService:
         if not valid:
             raise ValueError(error)
 
+        provider = OpenRouterProvider(api_key=api_key)
         try:
-            provider = OpenRouterProvider(api_key=api_key)
             models = await provider.list_models_detailed()
-            await provider.close()
 
             result = []
             for m in models:
@@ -498,6 +497,8 @@ class SettingsService:
             raise ValueError(f"Authentication failed: {str(e)}")
         except OpenRouterError as e:
             raise ValueError(str(e))
+        finally:
+            await provider.close()
 
 
 def get_settings_service(db: Session) -> SettingsService:

@@ -39,7 +39,7 @@ from app.database import get_db
 from app.services.llm import get_llm_provider, get_embedding_provider, reset_providers
 from app.services.llm.ollama_provider import OllamaProvider
 from app.services.hardware_service import detect_hardware
-from app.services.settings_service import SettingsService, get_settings_service
+from app.services.settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -384,8 +384,9 @@ async def update_llm_config(
         api_key=config.api_key,
     )
 
-    # Hot-reload: Reset providers so next request creates new ones
-    # Note: Full hot-reload implementation is in issue #84
+    # Hot-reload (limited): Reset provider singletons so the next request creates new ones.
+    # NOTE: This does NOT explicitly close any existing provider connections/resources;
+    #       full hot-reload with proper teardown/cleanup is tracked in issue #84.
     reset_providers()
 
     logger.info(
@@ -455,6 +456,8 @@ async def list_openrouter_models(
 
     Returns models with pricing information.
     """
+    from app.services.secrets_service import InvalidToken
+
     service = get_settings_service(db)
 
     # Get API key from header or stored settings
@@ -463,7 +466,14 @@ async def list_openrouter_models(
         # Try to get from stored settings
         settings_model = service.get_current_settings()
         if settings_model and settings_model.api_key_encrypted:
-            api_key = service.get_decrypted_api_key(settings_model)
+            try:
+                api_key = service.get_decrypted_api_key(settings_model)
+            except InvalidToken:
+                logger.error("Failed to decrypt stored API key - may be corrupted")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Stored API key is corrupted. Please reconfigure your OpenRouter settings.",
+                )
 
     if not api_key:
         raise HTTPException(
