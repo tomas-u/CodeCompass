@@ -49,5 +49,6 @@ def init_db():
     from app.models import diagram  # noqa: F401
     from app.models import chat  # noqa: F401
     from app.models import code_chunk  # noqa: F401
+    from app.models import settings  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
