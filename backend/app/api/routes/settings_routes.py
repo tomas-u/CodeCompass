@@ -4,8 +4,9 @@ import logging
 import time
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.schemas.settings import (
     SettingsResponse,
@@ -24,11 +25,21 @@ from app.schemas.settings import (
     CPUInfoResponse,
     RecommendationsResponse,
     ModelRecommendationResponse,
+    LLMConfigUpdate,
+    LLMConfigResponse,
+    LLMConfigUpdateResponse,
+    LLMValidationResponse,
+    ValidationDetailsResponse,
+    OpenRouterModelsResponse,
+    OpenRouterModel,
+    OpenRouterPricing,
 )
 from app.config import settings
-from app.services.llm import get_llm_provider, get_embedding_provider
+from app.database import get_db
+from app.services.llm import get_llm_provider, get_embedding_provider, reset_providers
 from app.services.llm.ollama_provider import OllamaProvider
 from app.services.hardware_service import detect_hardware
+from app.services.settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
@@ -320,3 +331,179 @@ async def get_hardware_info():
             inference_mode=hardware.recommendations.inference_mode,
         ),
     )
+
+
+# -------------------------------------------------------------------------
+# LLM Configuration Endpoints (Issue #83)
+# -------------------------------------------------------------------------
+
+
+@router.get("/llm", response_model=LLMConfigResponse)
+async def get_llm_config(db: Session = Depends(get_db)):
+    """Get current LLM configuration.
+
+    Returns the current LLM settings without exposing the API key.
+    """
+    service = get_settings_service(db)
+    settings_model = service.get_or_create_settings()
+
+    # Determine status based on cached health check
+    status = "unknown"
+    if settings_model.last_health_status is not None:
+        status = "ready" if settings_model.last_health_status else "unavailable"
+
+    return LLMConfigResponse(
+        provider_type=settings_model.provider_type,
+        model=settings_model.model,
+        base_url=settings_model.base_url,
+        api_format=settings_model.api_format,
+        has_api_key=bool(settings_model.api_key_encrypted),
+        status=status,
+        last_health_check=settings_model.last_health_check,
+    )
+
+
+@router.put("/llm", response_model=LLMConfigUpdateResponse)
+async def update_llm_config(
+    config: LLMConfigUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update LLM configuration with hot-reload.
+
+    Saves the new configuration and reloads the LLM provider
+    so changes take effect immediately without restart.
+    """
+    service = get_settings_service(db)
+
+    # Save settings
+    settings_model = service.save_settings(
+        provider_type=config.provider_type,
+        model=config.model,
+        base_url=config.base_url,
+        api_format=config.api_format,
+        api_key=config.api_key,
+    )
+
+    # Hot-reload (limited): Reset provider singletons so the next request creates new ones.
+    # NOTE: This does NOT explicitly close any existing provider connections/resources;
+    #       full hot-reload with proper teardown/cleanup is tracked in issue #84.
+    reset_providers()
+
+    logger.info(
+        f"LLM config updated: provider={config.provider_type.value}, model={config.model}"
+    )
+
+    return LLMConfigUpdateResponse(
+        success=True,
+        provider_type=settings_model.provider_type,
+        model=settings_model.model,
+        status="ready",  # Will be verified on next health check
+        reloaded=True,
+    )
+
+
+@router.post("/llm/validate", response_model=LLMValidationResponse)
+async def validate_llm_config(
+    config: LLMConfigUpdate,
+    db: Session = Depends(get_db),
+):
+    """Validate LLM configuration before saving.
+
+    Tests the connection to the provider and verifies the model is available.
+    Does not save the configuration.
+    """
+    service = get_settings_service(db)
+
+    result = await service.test_connection(
+        provider_type=config.provider_type,
+        model=config.model,
+        base_url=config.base_url,
+        api_key=config.api_key,
+        api_format=config.api_format,
+    )
+
+    # Convert details to response schema
+    details = None
+    if result.details:
+        details = ValidationDetailsResponse(
+            model_name=result.details.get("model_name"),
+            context_length=result.details.get("context_length"),
+            pricing=result.details.get("pricing"),
+            available_models=result.details.get("available_models"),
+            model_count=result.details.get("model_count"),
+        )
+
+    return LLMValidationResponse(
+        valid=result.valid,
+        provider_status=result.provider_status,
+        model_available=result.model_available,
+        test_response_ms=result.test_response_ms,
+        error=result.error,
+        details=details,
+    )
+
+
+@router.get("/openrouter/models", response_model=OpenRouterModelsResponse)
+async def list_openrouter_models(
+    x_openrouter_key: Optional[str] = Header(None, alias="X-OpenRouter-Key"),
+    db: Session = Depends(get_db),
+):
+    """List available OpenRouter models.
+
+    Requires a valid OpenRouter API key, either:
+    - In the X-OpenRouter-Key header (for browsing before save)
+    - Or from stored settings (if already configured)
+
+    Returns models with pricing information.
+    """
+    from app.services.secrets_service import InvalidToken
+
+    service = get_settings_service(db)
+
+    # Get API key from header or stored settings
+    api_key = x_openrouter_key
+    if not api_key:
+        # Try to get from stored settings
+        settings_model = service.get_current_settings()
+        if settings_model and settings_model.api_key_encrypted:
+            try:
+                api_key = service.get_decrypted_api_key(settings_model)
+            except InvalidToken:
+                logger.error("Failed to decrypt stored API key - may be corrupted")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Stored API key is corrupted. Please reconfigure your OpenRouter settings.",
+                )
+
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="OpenRouter API key required. Provide via X-OpenRouter-Key header or configure in settings.",
+        )
+
+    try:
+        models = await service.list_openrouter_models(api_key)
+
+        return OpenRouterModelsResponse(
+            models=[
+                OpenRouterModel(
+                    id=m.id,
+                    name=m.name,
+                    provider=m.provider,
+                    context_length=m.context_length,
+                    pricing=OpenRouterPricing(
+                        input_per_million=m.pricing.get("input_per_million", 0),
+                        output_per_million=m.pricing.get("output_per_million", 0),
+                    ),
+                    capabilities=m.capabilities,
+                    description=m.description,
+                )
+                for m in models
+            ]
+        )
+
+    except ValueError as e:
+        error_msg = str(e)
+        if "Authentication failed" in error_msg:
+            raise HTTPException(status_code=401, detail=error_msg)
+        raise HTTPException(status_code=400, detail=error_msg)
