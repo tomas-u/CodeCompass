@@ -77,11 +77,12 @@ export function ExternalLLMPanel({
     });
   };
 
-  // Handle URL change
+  // Handle URL change - reset detection state and model selection
   const handleUrlChange = (url: string) => {
     setBaseUrl(url);
     setDetectStatus('idle');
     setDetectedModels([]);
+    setSelectedModel('');
     markDirty();
     emitConfig({ baseUrl: url });
   };
@@ -115,11 +116,9 @@ export function ExternalLLMPanel({
 
     try {
       // Use the test connection endpoint to validate
-      const provider = apiFormat === 'auto' || apiFormat === 'ollama'
-        ? 'ollama_external'
-        : 'ollama_external';
+      // Backend uses api_format field to distinguish Ollama vs OpenAI-compatible
       const result = await api.testConnection({
-        provider,
+        provider: 'ollama_external',
         model: selectedModel || manualModel || 'test',
         base_url: baseUrl,
       });
@@ -127,12 +126,14 @@ export function ExternalLLMPanel({
       if (result.success) {
         setDetectStatus('success');
 
-        // Try to list models from the server
-        try {
-          const modelsResponse = await api.listModels();
-          setDetectedModels(modelsResponse.models.map((m) => m.name));
-        } catch {
-          // Model listing may not work for all providers
+        // Try to list models (only supported for Ollama-style APIs)
+        if (apiFormat === 'ollama' || apiFormat === 'auto') {
+          try {
+            const modelsResponse = await api.listModels();
+            setDetectedModels(modelsResponse.models.map((m) => m.name));
+          } catch {
+            // Model listing may not work for all configurations
+          }
         }
       } else {
         setDetectStatus('error');
@@ -225,7 +226,7 @@ function ServerUrlInput({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onDetect();
+              if (e.key === 'Enter' && value.trim()) onDetect();
             }}
             aria-label="Server URL"
             className={cn(
