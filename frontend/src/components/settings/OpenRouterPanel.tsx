@@ -193,7 +193,7 @@ function ManagedModePanel({ onConfigChange, onDirtyChange }: ManagedModePanelPro
               )}
             >
               <div className="flex items-center gap-3">
-                <RadioGroupItem value={model.id} />
+                <RadioGroupItem id={`managed-model-${model.id}`} value={model.id} />
                 <div>
                   <span className="font-medium text-sm">{model.name}</span>
                   <p className="text-xs text-muted-foreground">{model.description}</p>
