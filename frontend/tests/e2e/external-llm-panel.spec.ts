@@ -10,10 +10,10 @@ import { test, expect } from '@playwright/test';
  * - Backend server running on http://localhost:8000
  * - Frontend server running on http://localhost:3000
  *
- * NOTE: These tests are skipped until issue #92 (Header integration) is complete.
+ * The tests require the Settings button in the header (added in #92).
  */
 
-test.describe.skip('External LLM Panel', () => {
+test.describe('External LLM Panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/CodeCompass/i);

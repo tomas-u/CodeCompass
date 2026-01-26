@@ -11,10 +11,10 @@ import { test, expect } from '@playwright/test';
  * - Frontend server running on http://localhost:3000
  * - Ollama service available (for model list/pull tests)
  *
- * NOTE: These tests are skipped until issue #92 (Header integration) is complete.
+ * The tests require the Settings button in the header (added in #92).
  */
 
-test.describe.skip('Ollama Container Panel', () => {
+test.describe('Ollama Container Panel', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/CodeCompass/i);

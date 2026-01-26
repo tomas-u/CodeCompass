@@ -8,12 +8,18 @@ import { Dashboard } from '@/components/dashboard/Dashboard';
 import { useAppStore } from '@/lib/store';
 
 export default function Home() {
-  const { currentProjectId, analysisProgress, projects, fetchProjects } = useAppStore();
+  const { currentProjectId, analysisProgress, projects, fetchProjects, fetchLLMSettings, startStatusPolling } = useAppStore();
 
-  // Fetch projects on mount
+  // Fetch projects and LLM settings on mount, start status polling
   useEffect(() => {
     fetchProjects();
-  }, [fetchProjects]);
+    fetchLLMSettings();
+    startStatusPolling();
+
+    return () => {
+      useAppStore.getState().stopStatusPolling();
+    };
+  }, [fetchProjects, fetchLLMSettings, startStatusPolling]);
 
   // Determine which view to show
   const showWelcome = !currentProjectId && !analysisProgress;
