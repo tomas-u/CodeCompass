@@ -95,7 +95,7 @@ interface AppState {
   validateLLMConfig: (config: LLMConfigUpdate) => Promise<LLMValidationResponse>;
   fetchHardwareInfo: () => Promise<void>;
   fetchAvailableModels: () => Promise<void>;
-  fetchOpenRouterModels: () => Promise<void>;
+  fetchOpenRouterModels: (apiKey?: string) => Promise<void>;
   pullModel: (modelName: string) => Promise<boolean>;
   deleteModel: (modelName: string) => Promise<boolean>;
   startStatusPolling: () => void;
@@ -296,11 +296,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  fetchOpenRouterModels: async () => {
+  fetchOpenRouterModels: async (apiKey) => {
     set({ isLoadingOpenRouterModels: true });
     try {
       const { api } = await import('./api');
-      const result = await api.listOpenRouterModels();
+      const result = await api.listOpenRouterModels(apiKey);
       set({ openRouterModels: result.models, isLoadingOpenRouterModels: false });
     } catch {
       set({ isLoadingOpenRouterModels: false });

@@ -741,9 +741,16 @@ class CodeCompassAPI {
 
   /**
    * List available OpenRouter models
+   * @param apiKey - Optional API key for browsing models before saving config
    */
-  async listOpenRouterModels(): Promise<OpenRouterModelsResponse> {
-    return request<OpenRouterModelsResponse>('/api/settings/openrouter/models');
+  async listOpenRouterModels(apiKey?: string): Promise<OpenRouterModelsResponse> {
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers['X-OpenRouter-Key'] = apiKey;
+    }
+    return request<OpenRouterModelsResponse>('/api/settings/openrouter/models', {
+      headers,
+    });
   }
 }
 

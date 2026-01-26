@@ -309,6 +309,15 @@ describe('Settings Store Slice', () => {
       expect(state.isLoadingOpenRouterModels).toBe(false);
     });
 
+    it('forwards apiKey to API method', async () => {
+      const api = await getApi();
+      api.listOpenRouterModels.mockResolvedValue({ models: [] });
+
+      await useAppStore.getState().fetchOpenRouterModels('sk-or-v1-test-key');
+
+      expect(api.listOpenRouterModels).toHaveBeenCalledWith('sk-or-v1-test-key');
+    });
+
     it('resets loading state on error', async () => {
       const api = await getApi();
       api.listOpenRouterModels.mockRejectedValue(new Error('Failed'));
