@@ -9,10 +9,10 @@ import { test, expect } from '@playwright/test';
  * - Backend server running on http://localhost:8000
  * - Frontend server running on http://localhost:3000
  *
- * NOTE: These tests are skipped until issue #92 (Header integration) is complete.
+ * The tests require the Settings button in the header (added in #92).
  */
 
-test.describe.skip('OpenRouter Panel - BYOK Mode', () => {
+test.describe('OpenRouter Panel - BYOK Mode', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/CodeCompass/i);
@@ -94,7 +94,7 @@ test.describe.skip('OpenRouter Panel - BYOK Mode', () => {
   });
 });
 
-test.describe.skip('OpenRouter Panel - Managed Mode', () => {
+test.describe('OpenRouter Panel - Managed Mode', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/CodeCompass/i);
