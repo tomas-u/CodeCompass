@@ -60,6 +60,10 @@ import type {
   ProviderInfo,
   TestConnectionRequest,
   TestConnectionResponse,
+  // Hardware & Models
+  HardwareInfo,
+  OllamaModelList,
+  ModelPullResponse,
   // Errors
   ErrorResponse,
 } from '@/types/api';
@@ -666,6 +670,40 @@ class CodeCompassAPI {
       method: 'POST',
       body: JSON.stringify(config),
     });
+  }
+
+  /**
+   * Get hardware information and model recommendations
+   */
+  async getHardwareInfo(): Promise<HardwareInfo> {
+    return request<HardwareInfo>('/api/settings/hardware');
+  }
+
+  /**
+   * List available models from Ollama
+   */
+  async listModels(): Promise<OllamaModelList> {
+    return request<OllamaModelList>('/api/settings/models');
+  }
+
+  /**
+   * Pull a model from Ollama library
+   */
+  async pullModel(model: string): Promise<ModelPullResponse> {
+    return request<ModelPullResponse>('/api/settings/models/pull', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    });
+  }
+
+  /**
+   * Delete a model from Ollama
+   */
+  async deleteModel(modelName: string): Promise<ModelPullResponse> {
+    return request<ModelPullResponse>(
+      `/api/settings/models/${encodeURIComponent(modelName)}`,
+      { method: 'DELETE' }
+    );
   }
 }
 

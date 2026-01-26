@@ -471,6 +471,61 @@ export interface TestConnectionResponse {
 }
 
 // ============================================================================
+// Hardware & Model Types
+// ============================================================================
+
+export interface GPUInfo {
+  detected: boolean;
+  name?: string;
+  vendor?: string;
+  vram_total_gb?: number;
+  vram_available_gb?: number;
+  compute_capability?: string;
+}
+
+export interface CPUInfo {
+  name: string;
+  cores: number;
+  threads: number;
+  ram_total_gb: number;
+  ram_available_gb: number;
+}
+
+export interface ModelRecommendation {
+  name: string;
+  reason: string;
+}
+
+export interface HardwareRecommendations {
+  max_model_params: string;
+  recommended_models: ModelRecommendation[];
+  inference_mode: string;
+}
+
+export interface HardwareInfo {
+  gpu: GPUInfo;
+  cpu: CPUInfo;
+  recommendations: HardwareRecommendations;
+}
+
+export interface OllamaModel {
+  name: string;
+  size: string;
+  modified_at: string;
+  details: Record<string, unknown>;
+}
+
+export interface OllamaModelList {
+  models: OllamaModel[];
+}
+
+export interface ModelPullResponse {
+  success: boolean;
+  model: string;
+  message: string;
+}
+
+// ============================================================================
 // Health & Root Types
 // ============================================================================
 
