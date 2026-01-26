@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { OllamaContainerPanel } from './OllamaContainerPanel';
 import { ExternalLLMPanel } from './ExternalLLMPanel';
+import { OpenRouterPanel } from './OpenRouterPanel';
 
 // Provider types matching backend schema
 export type ProviderType =
@@ -149,34 +150,3 @@ function ProviderTypeSelector({ value, onChange }: ProviderTypeSelectorProps) {
   );
 }
 
-// ============================================================================
-// Placeholder Panels (to be implemented in issue #90)
-// ============================================================================
-
-interface OpenRouterPanelProps {
-  onDirtyChange?: (dirty: boolean) => void;
-  mode: 'byok' | 'managed';
-}
-
-/**
- * OpenRouter Panel - placeholder for issue #90
- */
-function OpenRouterPanel({ mode, onDirtyChange: _onDirtyChange }: OpenRouterPanelProps) {
-  return (
-    <div className="p-4 border rounded-lg bg-muted/30">
-      <div className="text-center text-muted-foreground py-6">
-        <p className="font-medium">
-          OpenRouter Configuration ({mode === 'byok' ? 'Your API Key' : 'Managed'})
-        </p>
-        <p className="text-sm mt-2">
-          {mode === 'byok'
-            ? 'Use your own OpenRouter API key for cloud models.'
-            : 'Use CodeCompass-provided access to cloud models.'}
-        </p>
-        <p className="text-xs mt-4 text-muted-foreground/70">
-          Full implementation in issue #90
-        </p>
-      </div>
-    </div>
-  );
-}

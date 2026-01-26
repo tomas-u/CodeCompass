@@ -64,6 +64,9 @@ import type {
   HardwareInfo,
   OllamaModelList,
   ModelPullResponse,
+  // OpenRouter
+  OpenRouterModelsResponse,
+  LLMValidationResponse,
   // Errors
   ErrorResponse,
 } from '@/types/api';
@@ -704,6 +707,28 @@ class CodeCompassAPI {
       `/api/settings/models/${encodeURIComponent(modelName)}`,
       { method: 'DELETE' }
     );
+  }
+
+  /**
+   * List available OpenRouter models with pricing
+   */
+  async listOpenRouterModels(): Promise<OpenRouterModelsResponse> {
+    return request<OpenRouterModelsResponse>('/api/settings/openrouter/models');
+  }
+
+  /**
+   * Validate LLM configuration
+   */
+  async validateLLMConfig(config: {
+    provider_type: string;
+    model: string;
+    base_url?: string;
+    api_key?: string;
+  }): Promise<LLMValidationResponse> {
+    return request<LLMValidationResponse>('/api/settings/llm/validate', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
   }
 }
 
