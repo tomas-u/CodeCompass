@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { OllamaContainerPanel } from './OllamaContainerPanel';
 
 // Provider types matching backend schema
 export type ProviderType =
@@ -85,7 +86,9 @@ export function LLMSettingsPanel({
       {/* Provider-specific Configuration Panel */}
       <div className="pt-2">
         {providerType === 'ollama_container' && (
-          <OllamaContainerPanel onDirtyChange={onDirtyChange} />
+          <OllamaContainerPanel
+            onDirtyChange={onDirtyChange}
+          />
         )}
         {providerType === 'ollama_external' && (
           <ExternalLLMPanel onDirtyChange={onDirtyChange} />
@@ -146,30 +149,11 @@ function ProviderTypeSelector({ value, onChange }: ProviderTypeSelectorProps) {
 }
 
 // ============================================================================
-// Placeholder Panels (to be implemented in issues #88, #89, #90)
+// Placeholder Panels (to be implemented in issues #89, #90)
 // ============================================================================
 
 interface PanelProps {
   onDirtyChange?: (dirty: boolean) => void;
-}
-
-/**
- * Ollama Container Panel - placeholder for issue #88
- */
-function OllamaContainerPanel({ onDirtyChange: _onDirtyChange }: PanelProps) {
-  return (
-    <div className="p-4 border rounded-lg bg-muted/30">
-      <div className="text-center text-muted-foreground py-6">
-        <p className="font-medium">Container Ollama Configuration</p>
-        <p className="text-sm mt-2">
-          Configure Ollama running in the compose stack.
-        </p>
-        <p className="text-xs mt-4 text-muted-foreground/70">
-          Full implementation in issue #88
-        </p>
-      </div>
-    </div>
-  );
 }
 
 /**
