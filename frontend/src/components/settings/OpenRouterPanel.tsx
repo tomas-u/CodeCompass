@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Loader2, CheckCircle2, XCircle, Info, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
