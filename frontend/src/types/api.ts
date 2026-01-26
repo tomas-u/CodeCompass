@@ -526,6 +526,74 @@ export interface ModelPullResponse {
 }
 
 // ============================================================================
+// OpenRouter Types
+// ============================================================================
+
+export interface OpenRouterPricing {
+  input_per_million: number;
+  output_per_million: number;
+}
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
+  provider: string;
+  context_length: number;
+  pricing: OpenRouterPricing;
+  capabilities: string[];
+  description?: string;
+}
+
+export interface OpenRouterModelsResponse {
+  models: OpenRouterModel[];
+}
+
+export interface LLMValidationRequest {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_key?: string;
+  api_format?: string;
+}
+
+export interface LLMValidationResponse {
+  valid: boolean;
+  provider_status: string;
+  model_available: boolean;
+  test_response_ms?: number;
+  error?: string;
+  details?: {
+    model_name?: string;
+    context_length?: number;
+    pricing?: Record<string, number>;
+    available_models?: string[];
+    model_count?: number;
+  };
+}
+
+// ============================================================================
+// LLM Config Types (for settings store)
+// ============================================================================
+
+export interface LLMConfig {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_format?: 'ollama' | 'openai';
+  has_api_key?: boolean;
+  status: string;
+  last_health_check?: string;
+}
+
+export interface LLMConfigUpdate {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_format?: 'ollama' | 'openai';
+  api_key?: string;
+}
+
+// ============================================================================
 // Health & Root Types
 // ============================================================================
 
