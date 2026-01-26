@@ -548,6 +548,14 @@ export interface OpenRouterModelsResponse {
   models: OpenRouterModel[];
 }
 
+export interface LLMValidationRequest {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_key?: string;
+  api_format?: string;
+}
+
 export interface LLMValidationResponse {
   valid: boolean;
   provider_status: string;
@@ -561,6 +569,28 @@ export interface LLMValidationResponse {
     available_models?: string[];
     model_count?: number;
   };
+}
+
+// ============================================================================
+// LLM Config Types (for settings store)
+// ============================================================================
+
+export interface LLMConfig {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_format?: 'ollama' | 'openai';
+  has_api_key?: boolean;
+  status: string;
+  last_health_check?: string;
+}
+
+export interface LLMConfigUpdate {
+  provider_type: string;
+  model: string;
+  base_url?: string;
+  api_format?: 'ollama' | 'openai';
+  api_key?: string;
 }
 
 // ============================================================================

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { ProjectListItem, ProjectStatus as ApiProjectStatus, ChatSessionListItem } from '@/types/api';
+import type { LLMConfig, LLMConfigUpdate, LLMValidationResponse, HardwareInfo, OllamaModel, OpenRouterModel } from '@/types/settings';
+import type { LLMStatus } from '@/types/settings';
 
 // Type alias for internal use and re-export for convenience
 export type Project = ProjectListItem;
@@ -50,7 +52,24 @@ interface AppState {
   chatSessions: ChatSessionListItem[];
   isLoadingSessions: boolean;
 
-  // Actions
+  // Settings - LLM Configuration
+  llmConfig: LLMConfig | null;
+  llmStatus: LLMStatus;
+  llmError: string | null;
+
+  // Settings - Hardware
+  hardwareInfo: HardwareInfo | null;
+  isLoadingHardware: boolean;
+
+  // Settings - Models
+  availableModels: OllamaModel[];
+  isLoadingModels: boolean;
+
+  // Settings - OpenRouter Models
+  openRouterModels: OpenRouterModel[];
+  isLoadingOpenRouterModels: boolean;
+
+  // Project Actions
   setCurrentProject: (id: string | null) => void;
   toggleChatPanel: () => void;
   setActiveTab: (tab: 'overview' | 'diagrams' | 'files' | 'reports') => void;
@@ -59,6 +78,8 @@ interface AppState {
   addProject: (project: Project) => void;
   deleteProject: (id: string) => void;
   setAnalysisProgress: (progress: AnalysisProgress | null) => void;
+
+  // Chat Actions
   addChatMessage: (message: ChatMessage) => void;
   updateChatMessage: (id: string, updater: (msg: ChatMessage) => ChatMessage) => void;
   clearChat: () => void;
@@ -67,9 +88,24 @@ interface AppState {
   setChatSessions: (sessions: ChatSessionListItem[]) => void;
   setIsLoadingSessions: (loading: boolean) => void;
   setChatMessages: (messages: ChatMessage[]) => void;
+
+  // Settings Actions
+  fetchLLMSettings: () => Promise<void>;
+  updateLLMConfig: (config: LLMConfigUpdate) => Promise<boolean>;
+  validateLLMConfig: (config: LLMConfigUpdate) => Promise<LLMValidationResponse>;
+  fetchHardwareInfo: () => Promise<void>;
+  fetchAvailableModels: () => Promise<void>;
+  fetchOpenRouterModels: (apiKey?: string) => Promise<void>;
+  pullModel: (modelName: string) => Promise<boolean>;
+  deleteModel: (modelName: string) => Promise<boolean>;
+  startStatusPolling: () => void;
+  stopStatusPolling: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+// Status polling interval (outside store to avoid serialization)
+let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+export const useAppStore = create<AppState>((set, get) => ({
   // Initial state
   projects: [],
   currentProjectId: null,
@@ -84,7 +120,21 @@ export const useAppStore = create<AppState>((set) => ({
   chatSessions: [],
   isLoadingSessions: false,
 
-  // Actions
+  // Settings initial state
+  llmConfig: null,
+  llmStatus: 'unknown',
+  llmError: null,
+  hardwareInfo: null,
+  isLoadingHardware: false,
+  availableModels: [],
+  isLoadingModels: false,
+  openRouterModels: [],
+  isLoadingOpenRouterModels: false,
+
+  // ============================================================================
+  // Project Actions
+  // ============================================================================
+
   setCurrentProject: (id) => set({
     currentProjectId: id,
     // Clear chat state when changing projects
@@ -138,6 +188,10 @@ export const useAppStore = create<AppState>((set) => ({
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
 
+  // ============================================================================
+  // Chat Actions
+  // ============================================================================
+
   addChatMessage: (message) => set((state) => ({
     chatMessages: [...state.chatMessages, message]
   })),
@@ -159,4 +213,137 @@ export const useAppStore = create<AppState>((set) => ({
   setIsLoadingSessions: (loading) => set({ isLoadingSessions: loading }),
 
   setChatMessages: (messages) => set({ chatMessages: messages }),
+
+  // ============================================================================
+  // Settings Actions
+  // ============================================================================
+
+  fetchLLMSettings: async () => {
+    try {
+      const { api } = await import('./api');
+      const config = await api.getLLMSettings();
+      set({
+        llmConfig: config,
+        llmStatus: config.status === 'ready' ? 'ready' : 'error',
+        llmError: null,
+      });
+    } catch (error) {
+      const { getErrorMessage } = await import('./api-error');
+      set({
+        llmStatus: 'error',
+        llmError: getErrorMessage(error),
+      });
+    }
+  },
+
+  updateLLMConfig: async (config) => {
+    try {
+      set({ llmStatus: 'connecting', llmError: null });
+      const { api } = await import('./api');
+      await api.updateLLMConfig(config);
+      await get().fetchLLMSettings();
+      return true;
+    } catch (error) {
+      const { getErrorMessage } = await import('./api-error');
+      set({
+        llmStatus: 'error',
+        llmError: getErrorMessage(error),
+      });
+      return false;
+    }
+  },
+
+  validateLLMConfig: async (config) => {
+    try {
+      const { api } = await import('./api');
+      return await api.validateLLMConfig({
+        provider_type: config.provider_type,
+        model: config.model,
+        base_url: config.base_url,
+        api_key: config.api_key,
+        api_format: config.api_format,
+      });
+    } catch (error) {
+      const { getErrorMessage } = await import('./api-error');
+      return {
+        valid: false,
+        provider_status: 'error',
+        model_available: false,
+        error: getErrorMessage(error),
+      };
+    }
+  },
+
+  fetchHardwareInfo: async () => {
+    set({ isLoadingHardware: true });
+    try {
+      const { api } = await import('./api');
+      const info = await api.getHardwareInfo();
+      set({ hardwareInfo: info, isLoadingHardware: false });
+    } catch {
+      set({ isLoadingHardware: false });
+    }
+  },
+
+  fetchAvailableModels: async () => {
+    set({ isLoadingModels: true });
+    try {
+      const { api } = await import('./api');
+      const result = await api.listModels();
+      set({ availableModels: result.models, isLoadingModels: false });
+    } catch {
+      set({ isLoadingModels: false });
+    }
+  },
+
+  fetchOpenRouterModels: async (apiKey) => {
+    set({ isLoadingOpenRouterModels: true });
+    try {
+      const { api } = await import('./api');
+      const result = await api.listOpenRouterModels(apiKey);
+      set({ openRouterModels: result.models, isLoadingOpenRouterModels: false });
+    } catch {
+      set({ isLoadingOpenRouterModels: false });
+    }
+  },
+
+  pullModel: async (modelName) => {
+    try {
+      const { api } = await import('./api');
+      const result = await api.pullModel(modelName);
+      if (result.success) {
+        await get().fetchAvailableModels();
+      }
+      return result.success;
+    } catch {
+      return false;
+    }
+  },
+
+  deleteModel: async (modelName) => {
+    try {
+      const { api } = await import('./api');
+      const result = await api.deleteModel(modelName);
+      if (result.success) {
+        await get().fetchAvailableModels();
+      }
+      return result.success;
+    } catch {
+      return false;
+    }
+  },
+
+  startStatusPolling: () => {
+    if (pollingInterval) return;
+    pollingInterval = setInterval(() => {
+      get().fetchLLMSettings();
+    }, 30_000);
+  },
+
+  stopStatusPolling: () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+    }
+  },
 }));

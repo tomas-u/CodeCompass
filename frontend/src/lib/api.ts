@@ -64,9 +64,12 @@ import type {
   HardwareInfo,
   OllamaModelList,
   ModelPullResponse,
-  // OpenRouter
+  // OpenRouter & LLM Config
   OpenRouterModelsResponse,
+  LLMValidationRequest,
   LLMValidationResponse,
+  LLMConfig,
+  LLMConfigUpdate,
   // Errors
   ErrorResponse,
 } from '@/types/api';
@@ -710,24 +713,43 @@ class CodeCompassAPI {
   }
 
   /**
-   * List available OpenRouter models with pricing
+   * Get current LLM configuration
    */
-  async listOpenRouterModels(): Promise<OpenRouterModelsResponse> {
-    return request<OpenRouterModelsResponse>('/api/settings/openrouter/models');
+  async getLLMSettings(): Promise<LLMConfig> {
+    return request<LLMConfig>('/api/settings/llm');
   }
 
   /**
-   * Validate LLM configuration
+   * Update LLM configuration
    */
-  async validateLLMConfig(config: {
-    provider_type: string;
-    model: string;
-    base_url?: string;
-    api_key?: string;
-  }): Promise<LLMValidationResponse> {
+  async updateLLMConfig(config: LLMConfigUpdate): Promise<LLMConfig> {
+    return request<LLMConfig>('/api/settings/llm', {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Validate LLM configuration without saving
+   */
+  async validateLLMConfig(config: LLMValidationRequest): Promise<LLMValidationResponse> {
     return request<LLMValidationResponse>('/api/settings/llm/validate', {
       method: 'POST',
       body: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * List available OpenRouter models
+   * @param apiKey - Optional API key for browsing models before saving config
+   */
+  async listOpenRouterModels(apiKey?: string): Promise<OpenRouterModelsResponse> {
+    const headers: Record<string, string> = {};
+    if (apiKey) {
+      headers['X-OpenRouter-Key'] = apiKey;
+    }
+    return request<OpenRouterModelsResponse>('/api/settings/openrouter/models', {
+      headers,
     });
   }
 }
