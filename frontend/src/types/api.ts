@@ -526,6 +526,44 @@ export interface ModelPullResponse {
 }
 
 // ============================================================================
+// OpenRouter Types
+// ============================================================================
+
+export interface OpenRouterPricing {
+  input_per_million: number;
+  output_per_million: number;
+}
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
+  provider: string;
+  context_length: number;
+  pricing: OpenRouterPricing;
+  capabilities: string[];
+  description?: string;
+}
+
+export interface OpenRouterModelsResponse {
+  models: OpenRouterModel[];
+}
+
+export interface LLMValidationResponse {
+  valid: boolean;
+  provider_status: string;
+  model_available: boolean;
+  test_response_ms?: number;
+  error?: string;
+  details?: {
+    model_name?: string;
+    context_length?: number;
+    pricing?: Record<string, number>;
+    available_models?: string[];
+    model_count?: number;
+  };
+}
+
+// ============================================================================
 // Health & Root Types
 // ============================================================================
 
