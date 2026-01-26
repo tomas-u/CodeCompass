@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { OllamaContainerPanel } from './OllamaContainerPanel';
+import { ExternalLLMPanel } from './ExternalLLMPanel';
 
 // Provider types matching backend schema
 export type ProviderType =
@@ -149,33 +150,11 @@ function ProviderTypeSelector({ value, onChange }: ProviderTypeSelectorProps) {
 }
 
 // ============================================================================
-// Placeholder Panels (to be implemented in issues #89, #90)
+// Placeholder Panels (to be implemented in issue #90)
 // ============================================================================
 
-interface PanelProps {
+interface OpenRouterPanelProps {
   onDirtyChange?: (dirty: boolean) => void;
-}
-
-/**
- * External LLM Panel - placeholder for issue #89
- */
-function ExternalLLMPanel({ onDirtyChange: _onDirtyChange }: PanelProps) {
-  return (
-    <div className="p-4 border rounded-lg bg-muted/30">
-      <div className="text-center text-muted-foreground py-6">
-        <p className="font-medium">External LLM Configuration</p>
-        <p className="text-sm mt-2">
-          Connect to LM Studio, llama.cpp, or external Ollama instance.
-        </p>
-        <p className="text-xs mt-4 text-muted-foreground/70">
-          Full implementation in issue #89
-        </p>
-      </div>
-    </div>
-  );
-}
-
-interface OpenRouterPanelProps extends PanelProps {
   mode: 'byok' | 'managed';
 }
 
