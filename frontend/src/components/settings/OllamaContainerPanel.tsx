@@ -14,8 +14,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import type { HardwareInfo, OllamaModel } from '@/types/api';
 
 export interface OllamaContainerPanelProps {
-  /** Currently selected model */
-  selectedModel?: string;
+  /** Initial model selection (read once on mount) */
+  initialSelectedModel?: string;
   /** Callback when model selection changes */
   onModelChange?: (model: string) => void;
   /** Callback when form becomes dirty */
@@ -29,11 +29,11 @@ export interface OllamaContainerPanelProps {
  * and model pull functionality.
  */
 export function OllamaContainerPanel({
-  selectedModel: initialModel = '',
+  initialSelectedModel = '',
   onModelChange,
   onDirtyChange,
 }: OllamaContainerPanelProps) {
-  const [selectedModel, setSelectedModel] = useState(initialModel);
+  const [selectedModel, setSelectedModel] = useState(initialSelectedModel);
   const [models, setModels] = useState<OllamaModel[]>([]);
   const [hardwareInfo, setHardwareInfo] = useState<HardwareInfo | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
@@ -235,6 +235,11 @@ function ModelSelector({
   const [deletingModel, setDeletingModel] = useState<string | null>(null);
 
   const handleDelete = async (modelName: string) => {
+    const confirmed = window.confirm(
+      `Delete model "${modelName}"? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
     setDeletingModel(modelName);
     try {
       await onDelete(modelName);
