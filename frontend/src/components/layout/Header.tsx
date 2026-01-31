@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Compass, ChevronDown, Settings, HelpCircle, Plus, Check, Loader2, FolderOpen, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,11 +15,38 @@ import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/lib/store';
 import { ProjectDropdownSkeleton } from '@/components/ui/loading-skeleton';
 import { InlineError } from '@/components/ui/error-message';
+import { LLMStatusIndicator } from './LLMStatusIndicator';
+import { SettingsDialog, type SettingsTab } from '@/components/settings/SettingsDialog';
 
 export function Header() {
-  const { currentProjectId, setCurrentProject, projects, isLoadingProjects, projectsError, fetchProjects, isChatPanelOpen, toggleChatPanel } = useAppStore();
+  const {
+    currentProjectId, setCurrentProject, projects, isLoadingProjects,
+    projectsError, fetchProjects, isChatPanelOpen, toggleChatPanel,
+    llmConfig, llmStatus, llmError,
+  } = useAppStore();
+
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('llm');
 
   const currentProject = projects.find(p => p.id === currentProjectId);
+
+  const handleStatusClick = () => {
+    setSettingsTab('llm');
+    setSettingsOpen(true);
+  };
+
+  const handleSettingsClick = () => {
+    setSettingsOpen(true);
+  };
+
+  // Map store config to LLMStatusIndicator props.
+  // Always provide a config object so LLMStatusIndicator does not fall back to its internal fetch path.
+  const indicatorConfig = {
+    providerType: llmConfig?.provider_type ?? '',
+    model: llmConfig?.model ?? '',
+    status: llmStatus,
+    baseUrl: llmConfig?.base_url,
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -99,6 +127,13 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
+          {/* LLM Status Indicator */}
+          <LLMStatusIndicator
+            onClick={handleStatusClick}
+            config={indicatorConfig}
+            error={llmError}
+          />
+
           {/* Chat toggle - only shown when a project is selected */}
           {currentProjectId && (
             <Button
@@ -110,13 +145,20 @@ export function Header() {
               <MessageSquare className="h-5 w-5" />
             </Button>
           )}
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={handleSettingsClick} title="Settings">
             <Settings className="h-5 w-5" />
           </Button>
           <Button variant="ghost" size="icon">
             <HelpCircle className="h-5 w-5" />
           </Button>
         </div>
+
+        {/* Settings Dialog */}
+        <SettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          defaultTab={settingsTab}
+        />
       </div>
     </header>
   );
