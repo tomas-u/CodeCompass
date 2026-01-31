@@ -39,13 +39,14 @@ export function Header() {
     setSettingsOpen(true);
   };
 
-  // Map store config to LLMStatusIndicator props
-  const indicatorConfig = llmConfig ? {
-    providerType: llmConfig.provider_type,
-    model: llmConfig.model,
+  // Map store config to LLMStatusIndicator props.
+  // Always provide a config object so LLMStatusIndicator does not fall back to its internal fetch path.
+  const indicatorConfig = {
+    providerType: llmConfig?.provider_type ?? '',
+    model: llmConfig?.model ?? '',
     status: llmStatus,
-    baseUrl: llmConfig.base_url,
-  } : undefined;
+    baseUrl: llmConfig?.base_url,
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {

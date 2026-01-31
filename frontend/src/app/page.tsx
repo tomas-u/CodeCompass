@@ -8,7 +8,7 @@ import { Dashboard } from '@/components/dashboard/Dashboard';
 import { useAppStore } from '@/lib/store';
 
 export default function Home() {
-  const { currentProjectId, analysisProgress, projects, fetchProjects, fetchLLMSettings, startStatusPolling } = useAppStore();
+  const { currentProjectId, analysisProgress, fetchProjects, fetchLLMSettings, startStatusPolling } = useAppStore();
 
   // Fetch projects and LLM settings on mount, start status polling
   useEffect(() => {
