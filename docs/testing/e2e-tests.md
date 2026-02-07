@@ -664,7 +664,6 @@ These 6 E2E flows cover **80%+ of critical user functionality:**
 **Not Covered (Lower Priority):**
 - Diagram generation details
 - Report generation details
-- Settings configuration
 - Error recovery flows
 
 ---
@@ -699,6 +698,64 @@ These 6 E2E flows cover **80%+ of critical user functionality:**
 4. **Assertions:** Verify both UI state and network responses
 5. **YAML Snapshots:** Use `browser_snapshot()` to validate page structure at critical steps
 6. **Error Handling:** Document common failure modes
+7. **Never bypass Playwright actionability checks on fixed-position elements** (see below)
+
+### Playwright Actionability Checks Are Bug Detectors
+
+Playwright's native `.click()` refuses to click elements that are obscured, outside the viewport, or overlapped by other content. **This is a feature, not a limitation.** When a native click fails, it usually means a real user can't click it either.
+
+**Rule: Only use JS workarounds for elements inside scroll containers.**
+
+Elements inside a scrollable area may need `scrollIntoView` + JS dispatch because Playwright can't always determine scrollability within custom containers:
+
+```typescript
+// OK: element is inside a scroll container
+async function scrollAndClick(locator: Locator) {
+  await locator.evaluate((el) => {
+    el.scrollIntoView({ block: 'center' });
+    (el as HTMLElement).click();
+  });
+}
+```
+
+Elements in fixed positions (footers, headers, toolbars) must **always** use native Playwright `.click()`:
+
+```typescript
+// GOOD: native click — fails if footer is overlapped (catches layout bugs)
+await dialog.getByRole('button', { name: 'Save' }).click();
+
+// BAD: JS click — silently succeeds even if button is buried under content
+await saveBtn.evaluate((el) => (el as HTMLElement).click());
+```
+
+**If a native click fails on a fixed element, investigate the layout — don't add `force: true` or JS dispatch.**
+
+### Layout Regression Tests
+
+For dialogs and panels with scrollable content + fixed footers, add explicit layout assertions:
+
+```typescript
+test('footer buttons are not overlapped by content', async ({ page }) => {
+  const dialog = page.getByRole('dialog');
+  const layout = await dialog.evaluate((el) => {
+    const dialogRect = el.getBoundingClientRect();
+    const footer = el.querySelector('[data-slot="dialog-footer"]');
+    const scrollArea = el.querySelector('.overflow-y-auto');
+    if (!footer || !scrollArea) return null;
+    const footerRect = footer.getBoundingClientRect();
+    const scrollRect = scrollArea.getBoundingClientRect();
+    return {
+      footerInsideDialog: footerRect.bottom <= dialogRect.bottom + 1,
+      contentDoesNotOverlapFooter: scrollRect.bottom <= footerRect.top + 1,
+    };
+  });
+  expect(layout).not.toBeNull();
+  expect(layout!.footerInsideDialog).toBe(true);
+  expect(layout!.contentDoesNotOverlapFooter).toBe(true);
+});
+```
+
+These tests catch CSS overflow regressions that functional tests miss — the buttons still "work" via JS dispatch but are visually broken for users.
 
 ---
 
@@ -820,7 +877,9 @@ jobs:
 | `project-creation.spec.ts` | Flow 1 | 4 tests |
 | `analyze-workflow.spec.ts` | Flow 5 | 4 tests |
 | `chat.spec.ts` | Flow 6 | 11 tests |
-| **Total** | **3 of 6 flows** | **19 tests** |
+| `settings-dialog.spec.ts` | Settings dialog, layout regression | 12 tests |
+| `external-llm-save-test.spec.ts` | External LLM save/test connection | 10 tests |
+| **Total** | **3 of 6 flows + Settings** | **41 tests** |
 
 **Future Automation:**
 - Flow 2: Project list management

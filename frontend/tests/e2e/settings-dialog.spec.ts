@@ -22,7 +22,7 @@ test.describe('Settings Dialog', () => {
 
   test('opens settings dialog from header', async ({ page }) => {
     // Click the settings button in the header
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     // Dialog should be visible
@@ -35,7 +35,7 @@ test.describe('Settings Dialog', () => {
 
   test('has three tabs: LLM, Embedding, Analysis', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -49,7 +49,7 @@ test.describe('Settings Dialog', () => {
 
   test('switches between tabs', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -72,7 +72,7 @@ test.describe('Settings Dialog', () => {
 
   test('has footer buttons: Cancel, Test Connection, Save', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -85,13 +85,14 @@ test.describe('Settings Dialog', () => {
 
   test('Cancel button closes dialog', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
 
-    // Click Cancel
+    // Use native Playwright click — NOT JS dispatch.
+    // If this fails due to overlap, it means content is spilling over the footer (layout bug).
     await dialog.getByRole('button', { name: 'Cancel' }).click();
 
     // Dialog should be closed
@@ -100,7 +101,7 @@ test.describe('Settings Dialog', () => {
 
   test('X button closes dialog', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -115,7 +116,7 @@ test.describe('Settings Dialog', () => {
 
   test('ESC key closes dialog', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -128,43 +129,46 @@ test.describe('Settings Dialog', () => {
     await expect(dialog).not.toBeVisible();
   });
 
-  test('Test Connection button shows loading state', async ({ page }) => {
+  test('Save and Test Connection buttons are disabled without config', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
+
+    // Save and Test Connection should be disabled when no config has been selected
     const testButton = dialog.getByRole('button', { name: 'Test Connection' });
-
-    // Click Test Connection
-    await testButton.click();
-
-    // Button should show loading (spinner icon appears)
-    // Note: The button text should still be visible
+    const saveButton = dialog.getByRole('button', { name: 'Save' });
     await expect(testButton).toBeDisabled();
+    await expect(saveButton).toBeDisabled();
   });
 
-  test('Save button shows loading state', async ({ page }) => {
+  test('Save and Test Connection enable after selecting a config', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
+
+    // Select "External Local LLM" provider
+    await dialog.getByRole('radio', { name: /external local llm/i }).click();
+
+    // Enter a model name to trigger onConfigChange (scroll into view for Radix ScrollArea)
+    const modelInput = dialog.getByRole('textbox', { name: /manual model name/i });
+    await modelInput.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await modelInput.focus();
+    await modelInput.fill('test-model');
+
+    // Both buttons should now be enabled
+    const testButton = dialog.getByRole('button', { name: 'Test Connection' });
     const saveButton = dialog.getByRole('button', { name: 'Save' });
-
-    // Click Save
-    await saveButton.click();
-
-    // Button should show loading state
-    await expect(saveButton).toBeDisabled();
-
-    // Dialog should close after save completes
-    await expect(dialog).not.toBeVisible({ timeout: 3000 });
+    await expect(testButton).toBeEnabled();
+    await expect(saveButton).toBeEnabled();
   });
 
   test('dialog is accessible', async ({ page }) => {
     // Open settings dialog
-    const settingsButton = page.locator('header').getByRole('button', { name: /settings/i });
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
     await settingsButton.click();
 
     const dialog = page.getByRole('dialog');
@@ -176,5 +180,67 @@ test.describe('Settings Dialog', () => {
     await page.keyboard.press('Tab');
     const focused = page.locator(':focus');
     await expect(focused).toBeVisible();
+  });
+
+  test('footer buttons are not overlapped by content', async ({ page }) => {
+    // Open settings dialog
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
+    await settingsButton.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Check that footer buttons sit within the dialog bounds and are not
+    // covered by scrollable content. This catches layout overflow regressions.
+    const layout = await dialog.evaluate((el) => {
+      const dialogRect = el.getBoundingClientRect();
+      const footer = el.querySelector('[data-slot="dialog-footer"]');
+      const scrollArea = el.querySelector('.overflow-y-auto');
+      if (!footer || !scrollArea) return null;
+      const footerRect = footer.getBoundingClientRect();
+      const scrollRect = scrollArea.getBoundingClientRect();
+      return {
+        footerInsideDialog: footerRect.bottom <= dialogRect.bottom + 1,
+        contentDoesNotOverlapFooter: scrollRect.bottom <= footerRect.top + 1,
+      };
+    });
+
+    expect(layout).not.toBeNull();
+    expect(layout!.footerInsideDialog).toBe(true);
+    expect(layout!.contentDoesNotOverlapFooter).toBe(true);
+  });
+
+  test('footer buttons are not overlapped after selecting External LLM', async ({ page }) => {
+    // The External LLM panel has more content than Container Ollama,
+    // so this specifically guards against overflow with longer forms.
+    const settingsButton = page.locator('header').getByRole('button', { name: 'Settings', exact: true });
+    await settingsButton.click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Switch to External LLM (more content)
+    await dialog.getByRole('radio', { name: /external local llm/i }).click();
+
+    const layout = await dialog.evaluate((el) => {
+      const dialogRect = el.getBoundingClientRect();
+      const footer = el.querySelector('[data-slot="dialog-footer"]');
+      const scrollArea = el.querySelector('.overflow-y-auto');
+      if (!footer || !scrollArea) return null;
+      const footerRect = footer.getBoundingClientRect();
+      const scrollRect = scrollArea.getBoundingClientRect();
+      return {
+        footerInsideDialog: footerRect.bottom <= dialogRect.bottom + 1,
+        contentDoesNotOverlapFooter: scrollRect.bottom <= footerRect.top + 1,
+      };
+    });
+
+    expect(layout).not.toBeNull();
+    expect(layout!.footerInsideDialog).toBe(true);
+    expect(layout!.contentDoesNotOverlapFooter).toBe(true);
+
+    // Also verify footer buttons are natively clickable (not obscured)
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).not.toBeVisible();
   });
 });
