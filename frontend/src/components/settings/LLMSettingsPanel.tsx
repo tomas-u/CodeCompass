@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { OllamaContainerPanel } from './OllamaContainerPanel';
 import { ExternalLLMPanel } from './ExternalLLMPanel';
 import { OpenRouterPanel } from './OpenRouterPanel';
+import type { LLMConfigUpdate } from '@/types/settings';
 
 // Provider types matching backend schema
 export type ProviderType =
@@ -52,6 +53,8 @@ export interface LLMSettingsPanelProps {
   onProviderChange?: (provider: ProviderType) => void;
   /** Callback when any form value changes (for dirty state tracking) */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Callback when config changes (unified LLMConfigUpdate for save/test) */
+  onConfigChange?: (config: LLMConfigUpdate) => void;
 }
 
 /**
@@ -64,6 +67,7 @@ export function LLMSettingsPanel({
   initialProvider = 'ollama_container',
   onProviderChange,
   onDirtyChange,
+  onConfigChange,
 }: LLMSettingsPanelProps) {
   const [providerType, setProviderType] = useState<ProviderType>(initialProvider);
 
@@ -72,6 +76,45 @@ export function LLMSettingsPanel({
     setProviderType(newProvider);
     onProviderChange?.(newProvider);
     onDirtyChange?.(true);
+  };
+
+  // Container Ollama: model selection only
+  const handleContainerModelChange = (model: string) => {
+    onConfigChange?.({ provider_type: 'ollama_container', model });
+  };
+
+  // External LLM: base_url, api_format, model
+  const handleExternalConfigChange = (config: {
+    baseUrl: string;
+    apiFormat: 'auto' | 'ollama' | 'openai';
+    model: string;
+  }) => {
+    const apiFormat =
+      config.apiFormat === 'auto' ? undefined : config.apiFormat;
+
+    onConfigChange?.({
+      provider_type: 'ollama_external',
+      model: config.model,
+      base_url: config.baseUrl,
+      ...(apiFormat ? { api_format: apiFormat } : {}),
+    });
+  };
+
+  // OpenRouter BYOK: api_key + model
+  const handleBYOKConfigChange = (config: { apiKey?: string; model: string }) => {
+    onConfigChange?.({
+      provider_type: 'openrouter_byok',
+      model: config.model,
+      api_key: config.apiKey,
+    });
+  };
+
+  // OpenRouter Managed: model only
+  const handleManagedConfigChange = (config: { apiKey?: string; model: string }) => {
+    onConfigChange?.({
+      provider_type: 'openrouter_managed',
+      model: config.model,
+    });
   };
 
   return (
@@ -90,16 +133,28 @@ export function LLMSettingsPanel({
         {providerType === 'ollama_container' && (
           <OllamaContainerPanel
             onDirtyChange={onDirtyChange}
+            onModelChange={handleContainerModelChange}
           />
         )}
         {providerType === 'ollama_external' && (
-          <ExternalLLMPanel onDirtyChange={onDirtyChange} />
+          <ExternalLLMPanel
+            onDirtyChange={onDirtyChange}
+            onConfigChange={handleExternalConfigChange}
+          />
         )}
         {providerType === 'openrouter_byok' && (
-          <OpenRouterPanel mode="byok" onDirtyChange={onDirtyChange} />
+          <OpenRouterPanel
+            mode="byok"
+            onDirtyChange={onDirtyChange}
+            onConfigChange={handleBYOKConfigChange}
+          />
         )}
         {providerType === 'openrouter_managed' && (
-          <OpenRouterPanel mode="managed" onDirtyChange={onDirtyChange} />
+          <OpenRouterPanel
+            mode="managed"
+            onDirtyChange={onDirtyChange}
+            onConfigChange={handleManagedConfigChange}
+          />
         )}
       </div>
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { LLMSettingsPanel } from './LLMSettingsPanel';
+import { useAppStore } from '@/lib/store';
+import type { LLMConfigUpdate, LLMValidationResponse } from '@/types/settings';
 
 export type SettingsTab = 'llm' | 'embedding' | 'analysis';
 
@@ -43,11 +44,18 @@ export function SettingsDialog({
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [pendingConfig, setPendingConfig] = useState<LLMConfigUpdate | null>(null);
+  const [validationResult, setValidationResult] = useState<LLMValidationResponse | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync activeTab with defaultTab when dialog opens or defaultTab changes
   useEffect(() => {
     if (open) {
       setActiveTab(defaultTab);
+      // Reset transient state when dialog opens
+      setPendingConfig(null);
+      setValidationResult(null);
+      setSaveError(null);
     }
   }, [open, defaultTab]);
 
@@ -56,19 +64,27 @@ export function SettingsDialog({
     setActiveTab(value as SettingsTab);
   };
 
+  // Capture config changes from LLMSettingsPanel
+  const handleConfigChange = (config: LLMConfigUpdate) => {
+    setPendingConfig(config);
+    // Clear previous validation/error when config changes
+    setValidationResult(null);
+    setSaveError(null);
+  };
+
   // Handle cancel - discard changes and close
   const handleCancel = () => {
-    // TODO: Reset form state when store is implemented
     onOpenChange(false);
   };
 
   // Handle test connection
   const handleTestConnection = async () => {
+    if (!pendingConfig) return;
     setIsTesting(true);
+    setValidationResult(null);
     try {
-      // TODO: Implement validation via store when available
-      // For now, simulate a test
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const result = await useAppStore.getState().validateLLMConfig(pendingConfig);
+      setValidationResult(result);
     } finally {
       setIsTesting(false);
     }
@@ -76,12 +92,16 @@ export function SettingsDialog({
 
   // Handle save
   const handleSave = async () => {
+    if (!pendingConfig) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
-      // TODO: Implement save via store when available
-      // For now, simulate a save
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      onOpenChange(false);
+      const success = await useAppStore.getState().updateLLMConfig(pendingConfig);
+      if (success) {
+        onOpenChange(false);
+      } else {
+        setSaveError(useAppStore.getState().llmError || 'Failed to save configuration');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -102,40 +122,66 @@ export function SettingsDialog({
           onValueChange={handleTabChange}
           className="flex-1 flex flex-col min-h-0"
         >
-          <TabsList className="w-full justify-start">
+          <TabsList className="w-full justify-start shrink-0">
             <TabsTrigger value="llm">LLM</TabsTrigger>
             <TabsTrigger value="embedding">Embedding</TabsTrigger>
             <TabsTrigger value="analysis">Analysis</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-4">
-            <TabsContent value="llm" className="mt-0 min-h-[300px]">
-              <LLMSettingsPanel />
+          <div className="flex-1 min-h-0 overflow-y-auto mt-4">
+            <TabsContent value="llm" className="mt-0">
+              <LLMSettingsPanel onConfigChange={handleConfigChange} />
             </TabsContent>
 
-            <TabsContent value="embedding" className="mt-0 min-h-[300px]">
+            <TabsContent value="embedding" className="mt-0">
               <EmbeddingSettingsPanel />
             </TabsContent>
 
-            <TabsContent value="analysis" className="mt-0 min-h-[300px]">
+            <TabsContent value="analysis" className="mt-0">
               <AnalysisSettingsPanel />
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
 
-        <DialogFooter className="mt-4 gap-2 sm:gap-0">
+        {/* Validation / Save feedback */}
+        {validationResult && (
+          <div className={`flex items-center gap-2 text-sm px-1 ${validationResult.valid ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+            {validationResult.valid ? (
+              <>
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>
+                  Connection successful
+                  {validationResult.test_response_ms != null && ` (${validationResult.test_response_ms}ms)`}
+                </span>
+              </>
+            ) : (
+              <>
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>{validationResult.error || 'Validation failed'}</span>
+              </>
+            )}
+          </div>
+        )}
+        {saveError && (
+          <div className="flex items-center gap-2 text-sm text-destructive px-1">
+            <XCircle className="h-4 w-4 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
+
+        <DialogFooter className="mt-4 gap-2 sm:gap-0 shrink-0">
           <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
             Cancel
           </Button>
           <Button
             variant="outline"
             onClick={handleTestConnection}
-            disabled={isSaving || isTesting}
+            disabled={isSaving || isTesting || !pendingConfig}
           >
             {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Test Connection
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isTesting}>
+          <Button onClick={handleSave} disabled={isSaving || isTesting || !pendingConfig}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save
           </Button>
