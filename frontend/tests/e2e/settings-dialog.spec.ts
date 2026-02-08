@@ -153,7 +153,7 @@ test.describe('Settings Dialog', () => {
     // Select "External Local LLM" provider
     await dialog.getByRole('radio', { name: /external local llm/i }).click();
 
-    // Enter a model name to trigger onConfigChange (scroll into view for Radix ScrollArea)
+    // Enter a model name to trigger onConfigChange (scroll into view for overflow container)
     const modelInput = dialog.getByRole('textbox', { name: /manual model name/i });
     await modelInput.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await modelInput.focus();

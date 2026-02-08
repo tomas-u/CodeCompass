@@ -38,6 +38,8 @@ async function scrollAndFill(locator: Locator, value: string) {
 }
 
 test.describe('External LLM — Save & Test Connection', () => {
+  test.describe.configure({ mode: 'serial' });
+
   // Store original config so we can restore it after tests that modify it
   let originalConfig: Record<string, unknown> | null = null;
 
@@ -183,7 +185,7 @@ test.describe('External LLM — Save & Test Connection', () => {
     const dialog = await openExternalLLMSettings(page);
 
     await fillExternalConfig(dialog, {
-      url: 'http://nonexistent-host:99999',
+      url: 'http://nonexistent.invalid:9999',
       model: 'some-model',
     });
 
@@ -285,19 +287,19 @@ test.describe('External LLM — Save & Test Connection', () => {
     const dialog = await openExternalLLMSettings(page);
 
     await fillExternalConfig(dialog, {
-      url: 'http://nonexistent:99999',
+      url: 'http://nonexistent.invalid:9999',
       model: 'fake-model',
     });
 
     const saveBtn = dialog.getByRole('button', { name: 'Save' });
     await saveBtn.click();
 
-    // Wait for either: dialog closes (save succeeded anyway) or error appears
-    await expect(
-      dialog.locator('.text-destructive').first().or(
-        page.locator('body') // fallback — dialog closed
-      )
-    ).toBeVisible({ timeout: 10000 });
+    // Wait for either: dialog closes (save succeeded) or error appears
+    const errorMessage = dialog.locator('.text-destructive').first();
+    await Promise.race([
+      errorMessage.waitFor({ state: 'visible', timeout: 10000 }),
+      dialog.waitFor({ state: 'hidden', timeout: 10000 }),
+    ]);
 
     // Save button should re-enable regardless of outcome
     if (await dialog.isVisible()) {

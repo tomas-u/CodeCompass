@@ -86,14 +86,17 @@ export function LLMSettingsPanel({
   // External LLM: base_url, api_format, model
   const handleExternalConfigChange = (config: {
     baseUrl: string;
-    apiFormat: string;
+    apiFormat: 'auto' | 'ollama' | 'openai';
     model: string;
   }) => {
+    const apiFormat =
+      config.apiFormat === 'auto' ? undefined : config.apiFormat;
+
     onConfigChange?.({
       provider_type: 'ollama_external',
       model: config.model,
       base_url: config.baseUrl,
-      api_format: config.apiFormat === 'openai' ? 'openai' : 'ollama',
+      ...(apiFormat ? { api_format: apiFormat } : {}),
     });
   };
 
