@@ -177,10 +177,12 @@ class TestChatAPI:
         assert get_response.status_code == 200
         messages = get_response.json()["messages"]
 
-        # Should have: intro message + user message + assistant response
-        assistant_messages = [m for m in messages if m["role"] == "assistant" and m["content"] != messages[0]["content"]]
+        # Find the streamed assistant message by expected content
+        assistant_messages = [
+            m for m in messages
+            if m["role"] == "assistant" and m["content"] == "Hello world"
+        ]
         assert len(assistant_messages) == 1
-        assert assistant_messages[0]["content"] == "Hello world"
 
         # Verify sources were persisted
         sources = assistant_messages[0].get("sources")

@@ -143,16 +143,22 @@ async def stream_chat_response(
                 sources_data = []
                 for src in event["sources"]:
                     # RAGService yields `snippet`/`relevance_score` keys;
-                    # fall back to `content`/`score` for compatibility
-                    snippet = src.get("snippet") or src.get("content", "")
+                    # fall back to `content`/`score` for compatibility.
+                    # Use explicit None checks so falsy values like 0.0 are preserved.
+                    snippet = src.get("snippet")
+                    if snippet is None:
+                        snippet = src.get("content", "")
                     if len(snippet) > 200:
                         snippet = snippet[:200] + "..."
+                    relevance_score = src.get("relevance_score")
+                    if relevance_score is None:
+                        relevance_score = src.get("score", 0.0)
                     sources_data.append({
                         "file_path": src.get("file_path", ""),
                         "start_line": src.get("start_line", 0),
                         "end_line": src.get("end_line", 0),
                         "snippet": snippet,
-                        "relevance_score": src.get("relevance_score") or src.get("score", 0.0),
+                        "relevance_score": relevance_score,
                     })
             elif event_type == "done":
                 stream_completed = True
