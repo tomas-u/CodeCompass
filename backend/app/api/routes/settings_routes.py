@@ -385,12 +385,22 @@ async def update_llm_config(
     )
 
     # Hot-reload: Properly close existing provider and create new one with updated config
-    await reload_provider({
+    new_provider = await reload_provider({
         "provider_type": config.provider_type.value,
         "model": config.model,
         "base_url": config.base_url,
         "api_key": config.api_key,
     })
+
+    # Run health check so GET /api/settings/llm returns accurate status immediately
+    try:
+        healthy = await new_provider.health_check()
+        service.repository.update_health_status(settings_model, healthy)
+        status = "ready" if healthy else "unavailable"
+    except Exception as e:
+        logger.warning(f"Health check after reload failed: {e}")
+        service.repository.update_health_status(settings_model, False)
+        status = "unavailable"
 
     logger.info(
         f"LLM config updated: provider={config.provider_type.value}, model={config.model}"
@@ -400,7 +410,7 @@ async def update_llm_config(
         success=True,
         provider_type=settings_model.provider_type,
         model=settings_model.model,
-        status="ready",  # Will be verified on next health check
+        status=status,
         reloaded=True,
     )
 

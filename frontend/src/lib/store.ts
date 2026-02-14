@@ -224,7 +224,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       const config = await api.getLLMSettings();
       set({
         llmConfig: config,
-        llmStatus: config.status === 'ready' ? 'ready' : 'error',
+        llmStatus: config.status === 'ready' ? 'ready'
+          : config.status === 'unavailable' ? 'error'
+          : config.status === 'unknown' ? 'connecting'
+          : 'error',
         llmError: null,
       });
     } catch (error) {

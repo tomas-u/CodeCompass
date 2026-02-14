@@ -157,6 +157,7 @@ export interface Report {
   title: string;
   content: ReportContent;
   metadata?: Record<string, any>;
+  model_used?: string;
   generated_at: string;
 }
 
@@ -164,6 +165,7 @@ export interface ReportListItem {
   id: string;
   type: ReportType;
   title: string;
+  model_used?: string;
   generated_at: string;
 }
 

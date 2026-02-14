@@ -115,25 +115,22 @@ export function ExternalLLMPanel({
     setDetectedModels([]);
 
     try {
-      // Use the test connection endpoint to validate
-      // Backend uses api_format field to distinguish Ollama vs OpenAI-compatible
-      const result = await api.testConnection({
-        provider: 'ollama_external',
+      // Use the validate endpoint which creates a temporary provider
+      // with the user's base_url (unlike testConnection which uses the singleton)
+      const effectiveFormat = apiFormat === 'auto' ? undefined : apiFormat;
+      const result = await api.validateLLMConfig({
+        provider_type: 'ollama_external',
         model: selectedModel || manualModel || 'test',
         base_url: baseUrl,
+        api_format: effectiveFormat as 'ollama' | 'openai' | undefined,
       });
 
-      if (result.success) {
+      if (result.valid) {
         setDetectStatus('success');
 
-        // Try to list models (only supported for Ollama-style APIs)
-        if (apiFormat === 'ollama' || apiFormat === 'auto') {
-          try {
-            const modelsResponse = await api.listModels();
-            setDetectedModels(modelsResponse.models.map((m) => m.name));
-          } catch {
-            // Model listing may not work for all configurations
-          }
+        // Use models returned in the validation response
+        if (result.details?.available_models) {
+          setDetectedModels(result.details.available_models);
         }
       } else {
         setDetectStatus('error');

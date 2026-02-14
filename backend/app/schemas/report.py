@@ -35,6 +35,7 @@ class ReportResponse(BaseModel):
     title: str
     content: ReportContent
     metadata: Optional[Dict] = None
+    model_used: Optional[str] = None
     generated_at: datetime
 
     class Config:
@@ -46,6 +47,7 @@ class ReportListItem(BaseModel):
     id: str
     type: ReportType
     title: str
+    model_used: Optional[str] = None
     generated_at: datetime
 
 

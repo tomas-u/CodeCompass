@@ -150,7 +150,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
  */
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeout?: number,
 ): Promise<T> {
   const url = `${API_CONFIG.baseURL}${endpoint}`;
 
@@ -163,7 +164,7 @@ async function request<T>(
   };
 
   try {
-    const response = await fetchWithTimeout(url, requestOptions);
+    const response = await fetchWithTimeout(url, requestOptions, timeout);
     return handleResponse<T>(response);
   } catch (error) {
     logError(error, endpoint);
@@ -336,7 +337,11 @@ class CodeCompassAPI {
    * @param generate - If true, generate report if it doesn't exist (default: true)
    */
   async getReport(projectId: string, type: ReportType, generate: boolean = true): Promise<Report> {
-    return request<Report>(`/api/projects/${projectId}/reports/${type}?generate=${generate}`);
+    return request<Report>(
+      `/api/projects/${projectId}/reports/${type}?generate=${generate}`,
+      {},
+      generate ? 300_000 : undefined, // 5 min when generation may occur
+    );
   }
 
   /**
@@ -350,7 +355,8 @@ class CodeCompassAPI {
   ): Promise<{ message: string; report_id: string; generation_time_ms: string }> {
     return request<{ message: string; report_id: string; generation_time_ms: string }>(
       `/api/projects/${projectId}/reports/generate?report_type=${type}&force=${force}`,
-      { method: 'POST' }
+      { method: 'POST' },
+      300_000, // 5 min — report generation can be slow with larger models
     );
   }
 
@@ -522,6 +528,8 @@ class CodeCompassAPI {
     }>) => void,
     onDone: () => void,
     onError: (error: Error) => void,
+    sessionId?: string | null,
+    onSession?: (sessionId: string) => void,
   ): Promise<void> {
     const url = `${API_CONFIG.baseURL}/api/projects/${projectId}/chat`;
 
@@ -533,6 +541,7 @@ class CodeCompassAPI {
         },
         body: JSON.stringify({
           message,
+          session_id: sessionId || undefined,
           options: { stream: true },
         }),
       });
@@ -568,6 +577,11 @@ class CodeCompassAPI {
               const data = JSON.parse(line.slice(6));
 
               switch (eventType) {
+                case 'session':
+                  if (data.session_id && onSession) {
+                    onSession(data.session_id);
+                  }
+                  break;
                 case 'token':
                   if (data.content) {
                     onToken(data.content);

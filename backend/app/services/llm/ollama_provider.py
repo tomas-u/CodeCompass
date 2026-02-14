@@ -18,7 +18,7 @@ class OllamaProvider(LLMProvider):
         self,
         base_url: str = "http://localhost:11434",
         model: str = "phi3.5",
-        timeout: float = 120.0,
+        timeout: float = 300.0,
     ):
         """Initialize the Ollama provider.
 
@@ -153,8 +153,11 @@ class OllamaProvider(LLMProvider):
         except httpx.HTTPStatusError as e:
             logger.error(f"Ollama API error: {e.response.status_code} - {e.response.text}")
             raise
+        except httpx.TimeoutException:
+            logger.error(f"Ollama chat timed out after {self.timeout}s for model {payload['model']}")
+            raise
         except Exception as e:
-            logger.error(f"Ollama chat failed: {e}")
+            logger.error(f"Ollama chat failed: {type(e).__name__}: {e}")
             raise
 
     async def chat_stream(self, messages: List[ChatMessage], **kwargs) -> AsyncIterator[str]:
@@ -282,7 +285,8 @@ class OllamaProvider(LLMProvider):
         """
         try:
             client = await self._get_client()
-            response = await client.delete(
+            response = await client.request(
+                "DELETE",
                 f"{self.base_url}/api/delete",
                 json={"name": model_name},
             )

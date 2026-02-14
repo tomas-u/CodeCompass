@@ -41,7 +41,6 @@ class RAGService:
         """Initialize RAG service."""
         self._embedding_provider = None
         self._vector_service = None
-        self._llm_provider = None
 
     @property
     def embedding_provider(self):
@@ -59,10 +58,12 @@ class RAGService:
 
     @property
     def llm_provider(self):
-        """Lazy load LLM provider."""
-        if self._llm_provider is None:
-            self._llm_provider = get_llm_provider()
-        return self._llm_provider
+        """Get current LLM provider from factory.
+
+        Always delegates to get_llm_provider() instead of caching locally,
+        so that reload_provider() changes are picked up immediately.
+        """
+        return get_llm_provider()
 
     async def retrieve_context(
         self,
