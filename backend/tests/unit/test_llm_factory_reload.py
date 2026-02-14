@@ -199,9 +199,11 @@ class TestReloadProvider:
     @pytest.mark.asyncio
     async def test_reload_uses_default_values(self):
         """Test that reload uses default values for missing config."""
-        with patch("app.services.llm.factory.OllamaProvider") as mock_provider_class:
+        with patch("app.services.llm.factory.OllamaProvider") as mock_provider_class, \
+             patch("app.services.llm.factory.settings") as mock_settings:
             mock_provider = MagicMock()
             mock_provider_class.return_value = mock_provider
+            mock_settings.llm_base_url = "http://localhost:11434"
 
             # Empty config should use defaults
             provider = await reload_provider({})

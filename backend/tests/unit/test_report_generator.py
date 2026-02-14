@@ -1,7 +1,7 @@
 """Unit tests for ReportGenerator service."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.report_generator import ReportGenerator
 from app.schemas.report import ReportType
@@ -15,9 +15,6 @@ class TestReportGeneratorInit:
         """Test that ReportGenerator initializes with database session."""
         generator = ReportGenerator(test_db_session)
         assert generator.db is test_db_session
-        assert generator._llm_provider is None
-        assert generator._embedding_provider is None
-        assert generator._vector_service is None
 
 
 class TestParseSections:
@@ -425,10 +422,10 @@ class TestGenerateReport:
         # Mock LLM provider to be unhealthy
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=False)
-        generator._llm_provider = mock_provider
 
-        with pytest.raises(RuntimeError, match="LLM provider is not available"):
-            await generator.generate_report(project.id, ReportType.summary, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            with pytest.raises(RuntimeError, match="LLM provider is not available"):
+                await generator.generate_report(project.id, ReportType.summary, force=True)
 
     @pytest.mark.asyncio
     async def test_generate_summary_report_success(self, test_db_session, project_factory):
@@ -458,9 +455,9 @@ Run pip install -r requirements.txt."""
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
         mock_provider.chat = AsyncMock(return_value=mock_response)
-        generator._llm_provider = mock_provider
 
-        report = await generator.generate_report(project.id, ReportType.summary, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            report = await generator.generate_report(project.id, ReportType.summary, force=True)
 
         assert report is not None
         assert report.project_id == project.id
@@ -513,7 +510,6 @@ Consider adding more tests."""
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
         mock_provider.chat = AsyncMock(return_value=mock_response)
-        generator._llm_provider = mock_provider
 
         # Mock embedding and vector services
         mock_embedding = AsyncMock()
@@ -524,7 +520,8 @@ Consider adding more tests."""
         mock_vector.health_check = AsyncMock(return_value=False)
         generator._vector_service = mock_vector
 
-        report = await generator.generate_report(project.id, ReportType.architecture, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            report = await generator.generate_report(project.id, ReportType.architecture, force=True)
 
         assert report is not None
         assert report.type == "architecture"
@@ -572,9 +569,9 @@ Consider reducing coupling in service layer."""
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
         mock_provider.chat = AsyncMock(return_value=mock_response)
-        generator._llm_provider = mock_provider
 
-        report = await generator.generate_report(project.id, ReportType.dependencies, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            report = await generator.generate_report(project.id, ReportType.dependencies, force=True)
 
         assert report is not None
         assert report.type == "dependencies"
@@ -590,14 +587,14 @@ Consider reducing coupling in service layer."""
         # Mock LLM provider
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
-        generator._llm_provider = mock_provider
 
         # Create a fake enum value
-        with pytest.raises(ValueError, match="Unsupported report type"):
-            # Use a mock that looks like a ReportType but isn't one of the handled values
-            fake_type = MagicMock()
-            fake_type.value = "unknown"
-            await generator.generate_report(project.id, fake_type, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            with pytest.raises(ValueError, match="Unsupported report type"):
+                # Use a mock that looks like a ReportType but isn't one of the handled values
+                fake_type = MagicMock()
+                fake_type.value = "unknown"
+                await generator.generate_report(project.id, fake_type, force=True)
 
 
 class TestGenerateAllReports:
@@ -622,7 +619,6 @@ class TestGenerateAllReports:
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
         mock_provider.chat = AsyncMock(return_value=mock_response)
-        generator._llm_provider = mock_provider
 
         # Mock embedding and vector services
         mock_embedding = AsyncMock()
@@ -633,7 +629,8 @@ class TestGenerateAllReports:
         mock_vector.health_check = AsyncMock(return_value=False)
         generator._vector_service = mock_vector
 
-        reports = await generator.generate_all_reports(project.id, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            reports = await generator.generate_all_reports(project.id, force=True)
 
         # Should generate 3 reports: summary, architecture, dependencies
         assert len(reports) == 3
@@ -669,7 +666,6 @@ class TestGenerateAllReports:
         mock_provider = AsyncMock()
         mock_provider.health_check = AsyncMock(return_value=True)
         mock_provider.chat = mock_chat
-        generator._llm_provider = mock_provider
 
         # Mock embedding and vector services
         mock_embedding = AsyncMock()
@@ -680,7 +676,8 @@ class TestGenerateAllReports:
         mock_vector.health_check = AsyncMock(return_value=False)
         generator._vector_service = mock_vector
 
-        reports = await generator.generate_all_reports(project.id, force=True)
+        with patch("app.services.report_generator.get_llm_provider", return_value=mock_provider):
+            reports = await generator.generate_all_reports(project.id, force=True)
 
         # Should have 2 successful reports (one failed)
         assert len(reports) == 2

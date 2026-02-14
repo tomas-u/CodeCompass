@@ -207,13 +207,13 @@ class TestRAGService:
 
         rag_service._embedding_provider = mock_embedding_provider
         rag_service._vector_service = mock_vector_service
-        rag_service._llm_provider = mock_llm_provider
 
-        response = await rag_service.chat_with_context(
-            query="What does main do?",
-            project_id="proj-1",
-            project_name="TestProject",
-        )
+        with patch("app.services.rag_service.get_llm_provider", return_value=mock_llm_provider):
+            response = await rag_service.chat_with_context(
+                query="What does main do?",
+                project_id="proj-1",
+                project_name="TestProject",
+            )
 
         assert "main function prints Hello" in response.content
         assert len(response.sources) == 1
@@ -236,13 +236,13 @@ class TestRAGService:
 
         rag_service._embedding_provider = mock_embedding_provider
         rag_service._vector_service = mock_vector_service
-        rag_service._llm_provider = mock_llm_provider
 
-        response = await rag_service.chat_with_context(
-            query="test",
-            project_id="proj-1",
-            project_name="Test",
-        )
+        with patch("app.services.rag_service.get_llm_provider", return_value=mock_llm_provider):
+            response = await rag_service.chat_with_context(
+                query="test",
+                project_id="proj-1",
+                project_name="Test",
+            )
 
         assert "unavailable" in response.content.lower()
 
@@ -268,15 +268,15 @@ class TestRAGService:
 
         rag_service._embedding_provider = mock_embedding_provider
         rag_service._vector_service = mock_vector_service
-        rag_service._llm_provider = mock_llm_provider
 
-        events = []
-        async for event in rag_service.chat_with_context_stream(
-            query="test",
-            project_id="proj-1",
-            project_name="Test",
-        ):
-            events.append(event)
+        with patch("app.services.rag_service.get_llm_provider", return_value=mock_llm_provider):
+            events = []
+            async for event in rag_service.chat_with_context_stream(
+                query="test",
+                project_id="proj-1",
+                project_name="Test",
+            ):
+                events.append(event)
 
         # Should have: sources, tokens, done
         event_types = [e["type"] for e in events]
@@ -307,15 +307,15 @@ class TestRAGService:
 
         rag_service._embedding_provider = mock_embedding_provider
         rag_service._vector_service = mock_vector_service
-        rag_service._llm_provider = mock_llm_provider
 
-        events = []
-        async for event in rag_service.chat_with_context_stream(
-            query="test",
-            project_id="proj-1",
-            project_name="Test",
-        ):
-            events.append(event)
+        with patch("app.services.rag_service.get_llm_provider", return_value=mock_llm_provider):
+            events = []
+            async for event in rag_service.chat_with_context_stream(
+                query="test",
+                project_id="proj-1",
+                project_name="Test",
+            ):
+                events.append(event)
 
         # Should have error event
         assert any(e["type"] == "error" for e in events)
