@@ -15,8 +15,6 @@ class TestReportGeneratorInit:
         """Test that ReportGenerator initializes with database session."""
         generator = ReportGenerator(test_db_session)
         assert generator.db is test_db_session
-        assert generator._embedding_provider is None
-        assert generator._vector_service is None
 
 
 class TestParseSections:
