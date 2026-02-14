@@ -282,6 +282,9 @@ export function ReportsTab() {
                   {reports[tab].data && (
                     <p className="text-xs text-muted-foreground mt-1">
                       Generated: {new Date(reports[tab].data!.generated_at).toLocaleString()}
+                      {reports[tab].data!.model_used && (
+                        <> · {reports[tab].data!.model_used}</>
+                      )}
                     </p>
                   )}
                 </div>

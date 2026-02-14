@@ -45,6 +45,7 @@ async def list_reports(project_id: str, db: Session = Depends(get_db)):
                 id=report.id,
                 type=ReportType(report.type),
                 title=report.title,
+                model_used=report.model_used,
                 generated_at=report.created_at,
             )
         )
@@ -158,6 +159,7 @@ async def get_report(
         title=report.title,
         content=content,
         metadata=report.report_metadata,
+        model_used=report.model_used,
         generated_at=report.created_at,
     )
 
@@ -219,10 +221,11 @@ async def generate_reports(
             detail=f"Report generation unavailable: {str(e)}"
         )
     except Exception as e:
-        logger.error(f"Error generating reports: {e}")
+        error_msg = str(e) or f"{type(e).__name__} (no details)"
+        logger.error(f"Error generating reports: {type(e).__name__}: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate reports: {str(e)}"
+            detail=f"Failed to generate reports: {error_msg}"
         )
 
 

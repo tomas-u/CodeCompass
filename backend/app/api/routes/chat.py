@@ -112,19 +112,85 @@ def get_or_create_active_session(
     return new_session, True
 
 
-async def stream_chat_response(project_id: str, project_name: str, message: str, max_chunks: int):
-    """Generate SSE stream for chat response."""
+async def stream_chat_response(
+    project_id: str,
+    project_name: str,
+    message: str,
+    max_chunks: int,
+    session_id: str,
+    assistant_message_id: str,
+    db: Session,
+):
+    """Generate SSE stream for chat response and persist the result."""
     rag_service = get_rag_service()
+    token_chunks: list[str] = []
+    sources_data = None
+    stream_completed = False
 
-    async for event in rag_service.chat_with_context_stream(
-        query=message,
-        project_id=project_id,
-        project_name=project_name,
-        max_chunks=max_chunks,
-    ):
-        event_type = event.get("type", "unknown")
-        event_data = json.dumps(event)
-        yield f"event: {event_type}\ndata: {event_data}\n\n"
+    try:
+        async for event in rag_service.chat_with_context_stream(
+            query=message,
+            project_id=project_id,
+            project_name=project_name,
+            max_chunks=max_chunks,
+        ):
+            event_type = event.get("type", "unknown")
+
+            # Accumulate content from tokens
+            if event_type == "token" and "content" in event:
+                token_chunks.append(event["content"])
+            elif event_type == "sources" and "sources" in event:
+                sources_data = []
+                for src in event["sources"]:
+                    # RAGService yields `snippet`/`relevance_score` keys;
+                    # fall back to `content`/`score` for compatibility.
+                    # Use explicit None checks so falsy values like 0.0 are preserved.
+                    snippet = src.get("snippet")
+                    if snippet is None:
+                        snippet = src.get("content", "")
+                    if len(snippet) > 200:
+                        snippet = snippet[:200] + "..."
+                    relevance_score = src.get("relevance_score")
+                    if relevance_score is None:
+                        relevance_score = src.get("score", 0.0)
+                    sources_data.append({
+                        "file_path": src.get("file_path", ""),
+                        "start_line": src.get("start_line", 0),
+                        "end_line": src.get("end_line", 0),
+                        "snippet": snippet,
+                        "relevance_score": relevance_score,
+                    })
+            elif event_type == "done":
+                stream_completed = True
+
+            event_data = json.dumps(event)
+            yield f"event: {event_type}\ndata: {event_data}\n\n"
+    finally:
+        # Only persist on successful stream completion (not on errors/disconnects)
+        accumulated_content = "".join(token_chunks)
+        if accumulated_content and stream_completed:
+            try:
+                assistant_message = ChatMessageModel(
+                    id=assistant_message_id,
+                    session_id=session_id,
+                    role=DBMessageRole.assistant,
+                    content=accumulated_content,
+                    sources=sources_data,
+                )
+                db.add(assistant_message)
+
+                # Update session timestamp
+                session = db.query(ChatSession).filter(
+                    ChatSession.id == session_id
+                ).first()
+                if session:
+                    session.updated_at = datetime.utcnow()
+
+                db.commit()
+                logger.debug(f"Persisted streaming response to session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to persist streaming response: {e}")
+                db.rollback()
 
 
 @router.post("/{project_id}/chat")
@@ -149,15 +215,56 @@ async def chat(project_id: str, request: ChatRequest, db: Session = Depends(get_
         include_sources = request.options.include_sources
         stream = request.options.stream
 
-    # Handle streaming response (doesn't persist yet - TODO)
+    # Handle streaming response with persistence
     if stream:
-        return StreamingResponse(
-            stream_chat_response(
+        # Get or create session before streaming starts
+        session, is_new_session = get_or_create_active_session(
+            project_id, db, request.session_id
+        )
+
+        # If new session, add introduction message and set title
+        if is_new_session:
+            intro_content = generate_introduction_message(project)
+            intro_message = ChatMessageModel(
+                id=str(uuid4()),
+                session_id=session.id,
+                role=DBMessageRole.assistant,
+                content=intro_content,
+                sources=None,
+            )
+            db.add(intro_message)
+            session.title = request.message[:50] + ("..." if len(request.message) > 50 else "")
+            db.commit()
+
+        # Save user message before streaming
+        user_message = ChatMessageModel(
+            id=str(uuid4()),
+            session_id=session.id,
+            role=DBMessageRole.user,
+            content=request.message,
+        )
+        db.add(user_message)
+        db.commit()
+
+        assistant_message_id = str(uuid4())
+
+        # Include session_id in the stream so frontend can track it
+        async def stream_with_session_info():
+            # Send session info as first event
+            yield f"event: session\ndata: {json.dumps({'session_id': session.id})}\n\n"
+            async for chunk in stream_chat_response(
                 project_id=project_id,
                 project_name=project.name,
                 message=request.message,
                 max_chunks=max_chunks,
-            ),
+                session_id=session.id,
+                assistant_message_id=assistant_message_id,
+                db=db,
+            ):
+                yield chunk
+
+        return StreamingResponse(
+            stream_with_session_info(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",

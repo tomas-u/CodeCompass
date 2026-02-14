@@ -295,7 +295,13 @@ export function ChatPanel() {
             });
           }
           setIsAiTyping(false);
-        }
+        },
+        // sessionId - pass current session for message threading
+        currentSessionId,
+        // onSession - update session ID when backend creates/returns one
+        (sessionId) => {
+          setCurrentSessionId(sessionId);
+        },
       );
     } catch (error) {
       console.error('Chat streaming error:', error);

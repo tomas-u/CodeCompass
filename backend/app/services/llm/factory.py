@@ -123,7 +123,14 @@ async def reload_provider(config: Dict[str, Any]) -> LLMProvider:
 
         # Create new provider based on type
         if provider_type in ("ollama_container", "ollama_external"):
-            effective_base_url = base_url or "http://localhost:11434"
+            # For container Ollama, fall back to the environment-configured URL
+            # (e.g. http://ollama:11434 inside Docker) rather than localhost
+            if base_url:
+                effective_base_url = base_url
+            elif provider_type == "ollama_container":
+                effective_base_url = settings.llm_base_url
+            else:
+                effective_base_url = "http://localhost:11434"
             _llm_provider = OllamaProvider(
                 base_url=effective_base_url,
                 model=model,
