@@ -119,6 +119,77 @@ class TestChatAPI:
         assert "token" in event_types
         assert "done" in event_types
 
+    @patch("app.api.routes.chat.get_rag_service")
+    def test_chat_streaming_persists_to_db(self, mock_get_rag, client, project_factory):
+        """Test that streaming chat persists assistant message and sources to DB."""
+        project = project_factory(
+            name="Test Project",
+            status=ProjectStatus.ready,
+        )
+
+        # Mock RAG service streaming with sources
+        async def mock_stream(*args, **kwargs):
+            yield {
+                "type": "sources",
+                "sources": [
+                    {
+                        "file_path": "main.py",
+                        "start_line": 1,
+                        "end_line": 10,
+                        "snippet": "def main(): pass",
+                        "relevance_score": 0.9,
+                    }
+                ],
+            }
+            yield {"type": "token", "content": "Hello"}
+            yield {"type": "token", "content": " world"}
+            yield {"type": "done"}
+
+        mock_rag = MagicMock()
+        mock_rag.chat_with_context_stream = mock_stream
+        mock_get_rag.return_value = mock_rag
+
+        # Send streaming chat request
+        response = client.post(
+            f"/api/projects/{project.id}/chat",
+            json={
+                "message": "Hello",
+                "options": {"stream": True},
+            },
+        )
+        assert response.status_code == 200
+
+        # Extract session_id from the SSE session event
+        content = response.content.decode("utf-8")
+        session_id = None
+        for line in content.split("\n"):
+            if line.startswith("data: ") and "session_id" in line:
+                data = json.loads(line[6:])
+                if "session_id" in data:
+                    session_id = data["session_id"]
+                    break
+        assert session_id is not None
+
+        # Fetch the session and verify persistence
+        get_response = client.get(
+            f"/api/projects/{project.id}/chat/sessions/{session_id}"
+        )
+        assert get_response.status_code == 200
+        messages = get_response.json()["messages"]
+
+        # Should have: intro message + user message + assistant response
+        assistant_messages = [m for m in messages if m["role"] == "assistant" and m["content"] != messages[0]["content"]]
+        assert len(assistant_messages) == 1
+        assert assistant_messages[0]["content"] == "Hello world"
+
+        # Verify sources were persisted
+        sources = assistant_messages[0].get("sources")
+        assert sources is not None
+        assert len(sources) == 1
+        assert sources[0]["file_path"] == "main.py"
+        assert sources[0]["snippet"] == "def main(): pass"
+        assert sources[0]["relevance_score"] == 0.9
+
     def test_chat_project_not_found(self, client):
         """Test chat with non-existent project."""
         response = client.post(

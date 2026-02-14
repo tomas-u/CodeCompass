@@ -9,7 +9,7 @@ from datetime import datetime
 from uuid import uuid4
 from typing import Optional
 
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models.project import Project
 from app.models.chat import ChatSession, ChatMessage as ChatMessageModel, MessageRole as DBMessageRole
 from app.schemas.chat import (
@@ -119,11 +119,13 @@ async def stream_chat_response(
     max_chunks: int,
     session_id: str,
     assistant_message_id: str,
+    db: Session,
 ):
     """Generate SSE stream for chat response and persist the result."""
     rag_service = get_rag_service()
-    accumulated_content = ""
+    token_chunks: list[str] = []
     sources_data = None
+    stream_completed = False
 
     try:
         async for event in rag_service.chat_with_context_stream(
@@ -136,11 +138,13 @@ async def stream_chat_response(
 
             # Accumulate content from tokens
             if event_type == "token" and "content" in event:
-                accumulated_content += event["content"]
+                token_chunks.append(event["content"])
             elif event_type == "sources" and "sources" in event:
                 sources_data = []
                 for src in event["sources"]:
-                    snippet = src.get("content", "")
+                    # RAGService yields `snippet`/`relevance_score` keys;
+                    # fall back to `content`/`score` for compatibility
+                    snippet = src.get("snippet") or src.get("content", "")
                     if len(snippet) > 200:
                         snippet = snippet[:200] + "..."
                     sources_data.append({
@@ -148,42 +152,39 @@ async def stream_chat_response(
                         "start_line": src.get("start_line", 0),
                         "end_line": src.get("end_line", 0),
                         "snippet": snippet,
-                        "relevance_score": src.get("score", 0.0),
+                        "relevance_score": src.get("relevance_score") or src.get("score", 0.0),
                     })
+            elif event_type == "done":
+                stream_completed = True
 
             event_data = json.dumps(event)
             yield f"event: {event_type}\ndata: {event_data}\n\n"
     finally:
-        # Persist the assistant response after streaming completes
-        if accumulated_content:
+        # Only persist on successful stream completion (not on errors/disconnects)
+        accumulated_content = "".join(token_chunks)
+        if accumulated_content and stream_completed:
             try:
-                db = SessionLocal()
-                try:
-                    assistant_message = ChatMessageModel(
-                        id=assistant_message_id,
-                        session_id=session_id,
-                        role=DBMessageRole.assistant,
-                        content=accumulated_content,
-                        sources=sources_data,
-                    )
-                    db.add(assistant_message)
+                assistant_message = ChatMessageModel(
+                    id=assistant_message_id,
+                    session_id=session_id,
+                    role=DBMessageRole.assistant,
+                    content=accumulated_content,
+                    sources=sources_data,
+                )
+                db.add(assistant_message)
 
-                    # Update session timestamp
-                    session = db.query(ChatSession).filter(
-                        ChatSession.id == session_id
-                    ).first()
-                    if session:
-                        session.updated_at = datetime.utcnow()
+                # Update session timestamp
+                session = db.query(ChatSession).filter(
+                    ChatSession.id == session_id
+                ).first()
+                if session:
+                    session.updated_at = datetime.utcnow()
 
-                    db.commit()
-                    logger.debug(f"Persisted streaming response to session {session_id}")
-                except Exception as e:
-                    logger.error(f"Failed to persist streaming response: {e}")
-                    db.rollback()
-                finally:
-                    db.close()
+                db.commit()
+                logger.debug(f"Persisted streaming response to session {session_id}")
             except Exception as e:
-                logger.error(f"Failed to create DB session for persistence: {e}")
+                logger.error(f"Failed to persist streaming response: {e}")
+                db.rollback()
 
 
 @router.post("/{project_id}/chat")
@@ -252,6 +253,7 @@ async def chat(project_id: str, request: ChatRequest, db: Session = Depends(get_
                 max_chunks=max_chunks,
                 session_id=session.id,
                 assistant_message_id=assistant_message_id,
+                db=db,
             ):
                 yield chunk
 

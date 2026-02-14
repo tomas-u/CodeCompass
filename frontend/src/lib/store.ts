@@ -226,7 +226,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         llmConfig: config,
         llmStatus: config.status === 'ready' ? 'ready'
           : config.status === 'unavailable' ? 'error'
-          : config.status === 'unknown' ? 'connecting'
+          : config.status === 'unknown' ? 'unknown'
           : 'error',
         llmError: null,
       });
