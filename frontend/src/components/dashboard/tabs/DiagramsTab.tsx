@@ -166,11 +166,19 @@ function MermaidDiagram({ chart, id }: MermaidDiagramProps) {
   );
 }
 
-type TabType = 'dependencies' | 'directory';
+type TabType = 'dependencies' | 'dependencies-summary' | 'directory';
 
 export function DiagramsTab() {
   const { currentProjectId, projects } = useAppStore();
   const [activeTab, setActiveTab] = useState<TabType>('dependencies');
+
+  // Dependency diagram state
+  const [depDiagram, setDepDiagram] = useState<Diagram | null>(null);
+  const [depLoading, setDepLoading] = useState(false);
+  const [depError, setDepError] = useState<string | null>(null);
+  const [depDirection, setDepDirection] = useState<'LR' | 'TD'>('LR');
+  const [depPath, setDepPath] = useState<string>('');
+  const [depAvailablePaths, setDepAvailablePaths] = useState<string[]>([]);
 
   // Directory diagram state
   const [directoryDiagram, setDirectoryDiagram] = useState<Diagram | null>(null);
@@ -182,6 +190,42 @@ export function DiagramsTab() {
 
   const currentProject = projects.find(p => p.id === currentProjectId);
   const isProjectReady = currentProject?.status === 'ready';
+
+  // Fetch dependency diagram
+  const fetchDepDiagram = useCallback(async (
+    direction: 'LR' | 'TD' = depDirection,
+    path: string = depPath
+  ) => {
+    if (!currentProjectId || !isProjectReady) return;
+
+    setDepLoading(true);
+    setDepError(null);
+
+    try {
+      const diagram = await api.getDiagram(currentProjectId, 'dependency', { direction, path });
+      setDepDiagram(diagram);
+      if (diagram.metadata?.available_paths) {
+        setDepAvailablePaths(diagram.metadata.available_paths as string[]);
+      }
+    } catch (err: any) {
+      setDepError(err?.message || 'Failed to load dependency diagram');
+    } finally {
+      setDepLoading(false);
+    }
+  }, [currentProjectId, isProjectReady, depDirection, depPath]);
+
+  // Toggle dependency diagram direction
+  const toggleDepDirection = useCallback(() => {
+    const newDirection = depDirection === 'LR' ? 'TD' : 'LR';
+    setDepDirection(newDirection);
+    fetchDepDiagram(newDirection, depPath);
+  }, [depDirection, depPath, fetchDepDiagram]);
+
+  // Navigate to a dependency path
+  const navigateToDepPath = useCallback((path: string) => {
+    setDepPath(path);
+    fetchDepDiagram(depDirection, path);
+  }, [depDirection, fetchDepDiagram]);
 
   // Fetch directory diagram
   const fetchDirectoryDiagram = useCallback(async (
@@ -220,6 +264,13 @@ export function DiagramsTab() {
     fetchDirectoryDiagram(diagramDirection, path);
   }, [diagramDirection, fetchDirectoryDiagram]);
 
+  // Load dependency diagram when tab is selected
+  useEffect(() => {
+    if (activeTab === 'dependencies' && !depDiagram && !depLoading && !depError) {
+      fetchDepDiagram();
+    }
+  }, [activeTab, depDiagram, depLoading, depError, fetchDepDiagram]);
+
   // Load directory diagram when tab is selected
   useEffect(() => {
     if (activeTab === 'directory' && !directoryDiagram && !directoryLoading && !directoryError) {
@@ -229,6 +280,10 @@ export function DiagramsTab() {
 
   // Reset when project changes
   useEffect(() => {
+    setDepDiagram(null);
+    setDepError(null);
+    setDepPath('');
+    setDepAvailablePaths([]);
     setDirectoryDiagram(null);
     setDirectoryError(null);
     setCurrentPath('');
@@ -282,10 +337,105 @@ export function DiagramsTab() {
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="flex-1 flex flex-col min-h-0">
           <TabsList className="flex-shrink-0 w-fit">
             <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+            <TabsTrigger value="dependencies-summary">Dependency Summary</TabsTrigger>
             <TabsTrigger value="directory">Directory Structure</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dependencies" className="flex-1 min-h-0 mt-2 overflow-auto">
+          <TabsContent value="dependencies" className="flex-1 min-h-0 mt-2">
+            <Card className="h-full flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between flex-shrink-0 py-2 px-4">
+                <div>
+                  <CardTitle className="text-base">Dependency Graph</CardTitle>
+                  <CardDescription className="text-xs">
+                    Module dependencies and import relationships
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  {depAvailablePaths.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {depPath && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigateToDepPath('')}
+                          disabled={depLoading}
+                          title="Back to root"
+                        >
+                          <Home className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <select
+                        className="h-8 px-2 text-sm border rounded-md bg-background"
+                        value={depPath}
+                        onChange={(e) => navigateToDepPath(e.target.value)}
+                        disabled={depLoading}
+                      >
+                        <option value="">Root (all)</option>
+                        {depAvailablePaths.map((path) => (
+                          <option key={path} value={path}>
+                            {path}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="w-px h-6 bg-border" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleDepDirection}
+                    disabled={depLoading}
+                    title={depDirection === 'LR' ? 'Switch to top-down layout' : 'Switch to left-right layout'}
+                  >
+                    {depDirection === 'LR' ? (
+                      <ArrowRight className="h-4 w-4" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchDepDiagram()}
+                    disabled={depLoading}
+                  >
+                    {depLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-2 flex-1 min-h-0 flex flex-col">
+                {depLoading ? (
+                  <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-muted-foreground">Generating diagram...</span>
+                  </div>
+                ) : depError ? (
+                  <div className="flex-1 min-h-[200px] flex items-center justify-center">
+                    <Alert variant="destructive" className="max-w-lg">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{depError}</AlertDescription>
+                    </Alert>
+                  </div>
+                ) : depDiagram ? (
+                  <MermaidDiagram chart={depDiagram.mermaid_code} id="dependency" />
+                ) : (
+                  <div className="flex items-center justify-center flex-1 min-h-[200px] bg-muted/30 rounded-lg text-muted-foreground">
+                    <Button onClick={() => fetchDepDiagram()}>
+                      Generate Diagram
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="dependencies-summary" className="flex-1 min-h-0 mt-2 overflow-auto">
             <DependencyOverview projectId={currentProjectId!} />
           </TabsContent>
 
